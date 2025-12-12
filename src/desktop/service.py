@@ -49,7 +49,7 @@ class Desktop:
     def get_resolution(self)->tuple[int,int]:
         return pg.size()
         
-    def get_state(self,use_vision:bool=False,as_bytes:bool=False,scale:float=1.0)->DesktopState:
+    def get_state(self,use_vision:bool=False,use_dom:bool=False,as_bytes:bool=False,scale:float=1.0)->DesktopState:
         sleep(0.1)
         apps=self.get_apps()
         active_app=self.get_active_app()
@@ -57,7 +57,7 @@ class Desktop:
             apps.remove(active_app)
         logger.debug(f"Active app: {active_app}")
         logger.debug(f"Apps: {apps}")
-        tree_state=self.tree.get_state(active_app,apps)
+        tree_state=self.tree.get_state(active_app,apps,use_dom=use_dom)
         if use_vision:
             screenshot=self.tree.get_annotated_screenshot(tree_state.interactive_nodes,scale=scale)
             if as_bytes:

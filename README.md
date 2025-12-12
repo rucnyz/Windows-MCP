@@ -64,6 +64,58 @@ mcp-name: io.github.CursorTouch/Windows-MCP
 - **Real-Time Interaction**  
   Typical latency between actions (e.g., from one mouse click to the next) ranges from **0.7 to 2.5 secs**, and may slightly vary based on the number of active applications and system load, also the inferencing speed of the llm.
 
+- **DOM Mode for Browser Automation**  
+  Special `use_dom=True` mode for State-Tool that focuses exclusively on web page content, filtering out browser UI elements for cleaner, more efficient web automation.
+
+## 🌐 DOM Mode for Browser Automation
+
+Windows-MCP includes a powerful **DOM Mode** feature that enhances browser automation by focusing on web page content rather than browser UI elements.
+
+### What is DOM Mode?
+
+When `use_dom=True` is set in the State-Tool, the MCP server:
+- **Filters out browser UI**: Removes address bars, tabs, toolbars, and other browser chrome elements
+- **Returns only web content**: Provides interactive elements (links, buttons, forms) from the actual web page
+- **Reduces token usage**: Cleaner output means fewer tokens sent to the LLM
+- **Improves accuracy**: LLM focuses only on relevant web page elements
+
+### When to Use DOM Mode
+
+✅ **Use `use_dom=True` when:**
+- Automating web applications or websites
+- Scraping web content
+- Filling out web forms
+- Clicking links or buttons on web pages
+- Testing web interfaces
+- You want to ignore browser UI and focus on page content
+
+❌ **Use `use_dom=False` (default) when:**
+- Interacting with browser controls (address bar, tabs, bookmarks)
+- Working with desktop applications
+- Need to see all UI elements including browser chrome
+- Managing browser settings or extensions
+
+### Example Usage
+
+```python
+# Get web page content only (no browser UI)
+state_tool(use_vision=False, use_dom=True)
+
+# Get full desktop state including browser UI
+state_tool(use_vision=False, use_dom=False)
+
+# Get web page content with screenshot
+state_tool(use_vision=True, use_dom=True)
+```
+
+### Benefits
+
+1. **Token Efficiency**: Reduces the amount of data sent to LLM by filtering irrelevant browser UI
+2. **Better Focus**: LLM concentrates on actionable web page elements
+3. **Cleaner Output**: Only relevant interactive elements from the DOM are returned
+4. **Faster Processing**: Less data means faster LLM inference
+5. **Cost Savings**: Fewer tokens = lower API costs for cloud LLMs
+
 ## 🛠️Installation
 
 ### Prerequisites
@@ -267,7 +319,7 @@ MCP Client can access the following tools to interact with Windows:
 - `Move-Tool`: Move mouse pointer.
 - `Shortcut-Tool`: Press keyboard shortcuts (`Ctrl+c`, `Alt+Tab`, etc).
 - `Wait-Tool`: Pause for a defined duration.
-- `State-Tool`: Combined snapshot of default language, browser, active apps and interactive, textual and scrollable elements along with screenshot of the desktop..
+- `State-Tool`: Combined snapshot of default language, browser, active apps and interactive, textual and scrollable elements along with screenshot of the desktop. Supports `use_dom=True` for browser content extraction (web page elements only) and `use_vision=True` for including screenshots.
 - `App-Tool`: To launch an application from the start menu, resize or move the window and switch between apps.
 - `Shell-Tool`: To execute PowerShell commands.
 - `Scrape-Tool`: To scrape the entire webpage for information.
