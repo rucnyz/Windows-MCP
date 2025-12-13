@@ -1,6 +1,6 @@
 from windows_mcp.tree.config import INTERACTIVE_CONTROL_TYPE_NAMES,DOCUMENT_CONTROL_TYPE_NAMES,INFORMATIVE_CONTROL_TYPE_NAMES, DEFAULT_ACTIONS, THREAD_MAX_RETRIES
+from windows_mcp.tree.views import TreeElementNode, ScrollElementNode, TextElementNode, Center, BoundingBox, TreeState, DOMInfo
 from uiautomation import Control,ImageControl,ScrollPattern,WindowControl,Rect,GetRootControl,PatternId
-from windows_mcp.tree.views import TreeElementNode, ScrollElementNode, TextElementNode, Center, BoundingBox, TreeState
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from windows_mcp.tree.utils import random_point_within_bounding_box
 from PIL import Image, ImageFont, ImageDraw
@@ -24,58 +24,22 @@ class Tree:
     def __init__(self,desktop:'Desktop'):
         self.desktop=desktop
         self.screen_size=self.desktop.get_screen_size()
-        self.dom:Optional[Control]=None
+        self.dom_info:Optional[DOMInfo]=None
         self.dom_bounding_box:BoundingBox=None
         self.screen_box=BoundingBox(
             top=0, left=0, bottom=self.screen_size.height, right=self.screen_size.width,
             width=self.screen_size.width, height=self.screen_size.height 
         )
-        self.root:Optional[TreeElementNode]=None
 
     def get_state(self,active_app:App,other_apps:list[App],use_dom:bool=False)->TreeState:
-        self.root=GetRootControl()
+        root=GetRootControl()
         other_apps_handle=set(map(lambda other_app: other_app.handle,other_apps))
-        apps=list(filter(lambda app:app.NativeWindowHandle not in other_apps_handle,self.root.GetChildren()))
+        apps=list(filter(lambda app:app.NativeWindowHandle not in other_apps_handle,root.GetChildren()))
         del other_apps_handle
         if active_app:
             apps=list(filter(lambda app:app.ClassName!='Progman',apps))
         interactive_nodes,scrollable_nodes,dom_informative_nodes=self.get_appwise_nodes(apps=apps,use_dom=use_dom)
-        root=TreeElementNode(**{
-            'name':'Desktop',
-            'control_type':'PaneControl',
-            'app_name':'Desktop',
-            'value':'',
-            'shortcut':'',
-            'bounding_box':self.screen_box,
-            'center':Center(x=self.screen_box.left+self.screen_box.width//2,y=self.screen_box.top+self.screen_box.height//2),
-            'xpath':'',
-            'is_focused':False
-        })
-        dom=None
-        if self.dom:
-            scroll_pattern=self.dom.GetPattern(PatternId.ScrollPattern)
-            bounding_box=self.dom.BoundingRectangle
-            dom=ScrollElementNode(**{
-                'name':"DOM",
-                'control_type':'DocumentControl',
-                'app_name':"DOM",
-                'bounding_box':BoundingBox(
-                    left=bounding_box.left,
-                    top=bounding_box.top,
-                    right=bounding_box.right,
-                    bottom=bounding_box.bottom,
-                    width=bounding_box.width(),
-                    height=bounding_box.height()
-                ),
-                'center':Center(x=bounding_box.left+bounding_box.width()//2,y=bounding_box.top+bounding_box.height()//2),
-                'horizontal_scrollable':scroll_pattern.HorizontallyScrollable,
-                'horizontal_scroll_percent':scroll_pattern.HorizontalScrollPercent if scroll_pattern.HorizontallyScrollable else 0,
-                'vertical_scrollable':scroll_pattern.VerticallyScrollable,
-                'vertical_scroll_percent':scroll_pattern.VerticalScrollPercent if scroll_pattern.VerticallyScrollable else 0,
-                'xpath':'',
-                'is_focused':False
-            })
-        return TreeState(root=root,dom=dom,interactive_nodes=interactive_nodes,scrollable_nodes=scrollable_nodes,dom_informative_nodes=dom_informative_nodes)
+        return TreeState(dom_info=self.dom_info,interactive_nodes=interactive_nodes,scrollable_nodes=scrollable_nodes,dom_informative_nodes=dom_informative_nodes)
 
     def get_appwise_nodes(self,apps:list[Control],use_dom:bool=False)-> tuple[list[TreeElementNode],list[ScrollElementNode],list[TextElementNode]]:
         interactive_nodes, scrollable_nodes,dom_informative_nodes = [], [], []
@@ -388,7 +352,13 @@ class Tree:
                     self.dom_bounding_box=BoundingBox(left=bounding_box.left,top=bounding_box.top,
                     right=bounding_box.right,bottom=bounding_box.bottom,width=bounding_box.width(),
                     height=bounding_box.height())
-                    self.dom=child
+                    scroll_pattern=child.GetPattern(PatternId.ScrollPattern)
+                    self.dom_info=DOMInfo(
+                        horizontal_scrollable=scroll_pattern.HorizontallyScrollable,
+                        horizontal_scroll_percent=scroll_pattern.HorizontalScrollPercent if scroll_pattern.HorizontallyScrollable else 0,
+                        vertical_scrollable=scroll_pattern.VerticallyScrollable,
+                        vertical_scroll_percent=scroll_pattern.VerticalScrollPercent if scroll_pattern.VerticallyScrollable else 0
+                    )
                     # enter DOM subtree
                     tree_traversal(child, is_dom=True, is_dialog=is_dialog)
                 # Check if the child is a dialog

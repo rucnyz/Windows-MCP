@@ -3,12 +3,18 @@ from tabulate import tabulate
 from typing import Optional
 
 @dataclass
+class DOMInfo:
+    horizontal_scrollable: bool
+    horizontal_scroll_percent: float
+    vertical_scrollable: bool
+    vertical_scroll_percent: float
+
+@dataclass
 class TreeState:
-    root:Optional['TreeElementNode']=None
-    dom:Optional['ScrollElementNode']=None
     interactive_nodes:list['TreeElementNode']=field(default_factory=list)
     scrollable_nodes:list['ScrollElementNode']=field(default_factory=list)
     dom_informative_nodes:list['TextElementNode']=field(default_factory=list)
+    dom_info:Optional['DOMInfo']=None
 
     def interactive_elements_to_string(self) -> str:
         if not self.interactive_nodes:

@@ -165,5 +165,5 @@ cython_debug/
 .mcpregistry_github_token
 .mcpregistry_registry_token
 sandbox
-# *.ipynb
+*.ipynb
 *.mcpb

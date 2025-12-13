@@ -243,10 +243,10 @@ def wait_tool(duration:int)->str:
 def scrape_tool(url:str)->str:
     desktop_state=desktop.desktop_state
     tree_state=desktop_state.tree_state
-    if not tree_state.dom_node:
-        return f'Unable to scrape URL: {url}. No DOM node found.'
-    dom_node=tree_state.dom
-    vertical_scroll_percent=dom_node.vertical_scroll_percent
+    if not tree_state.dom_info:
+        return f'No DOM information found. Please open {url} in browser first.'
+    dom_info=tree_state.dom_info
+    vertical_scroll_percent=dom_info.vertical_scroll_percent
     content='\n'.join([node.text for node in tree_state.dom_informative_nodes])
     header_status = "Reached top" if vertical_scroll_percent <= 0 else "Scroll up to see more"
     footer_status = "Reached bottom" if vertical_scroll_percent >= 100 else "Scroll down to see more"
