@@ -111,22 +111,31 @@ class Desktop:
         return {row.get('Name').lower():row.get('AppID') for row in reader}
     
     def execute_command(self,command:str)->tuple[str,int]:
+        """Execute a PowerShell command and return (output, return_code).
+        
+        Uses Base64-encoded command to handle special characters properly.
+        Handles both bytes and string output from subprocess for robustness.
+        """
         try:
             encoded = base64.b64encode(command.encode("utf-16le")).decode("ascii")
             result = subprocess.run(
                 ['powershell', '-NoProfile', '-EncodedCommand', encoded], 
-                capture_output=True, 
-                errors='ignore',
+                capture_output=True,
                 timeout=25,
                 cwd=os.path.expanduser(path='~')
             )
-            stdout=result.stdout
-            stderr=result.stderr
-            return (stdout or stderr,result.returncode)
+            # Handle both bytes and str output (subprocess behavior varies by environment)
+            stdout = result.stdout
+            stderr = result.stderr
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode(self.encoding, errors='ignore')
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode(self.encoding, errors='ignore')
+            return (stdout or stderr, result.returncode)
         except subprocess.TimeoutExpired:
             return ('Command execution timed out', 1)
         except Exception as e:
-            return ('Command execution failed', 1)
+            return (f'Command execution failed: {type(e).__name__}: {e}', 1)
         
     def is_app_browser(self,node:uia.Control):
         process=Process(node.ProcessId)
