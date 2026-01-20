@@ -7,12 +7,17 @@ from windows_mcp.uia.enums import TreeScope
 from threading import Thread, Event
 import comtypes.client
 import comtypes
+import logging
+import weakref
 
 from .event_handlers import (
     FocusChangedEventHandler,
     StructureChangedEventHandler,
     PropertyChangedEventHandler
 )
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class WatchDog:
     def __init__(self):
@@ -90,12 +95,12 @@ class WatchDog:
                         self._focus_handler = FocusChangedEventHandler(self)
                         self.uia.AddFocusChangedEventHandler(None, self._focus_handler)
                     except Exception as e:
-                        print(f"Failed to add focus handler: {e}")
+                        logger.debug(f"Failed to add focus handler: {e}")
                 elif not self._focus_callback and self._focus_handler:
                     try:
                         self.uia.RemoveFocusChangedEventHandler(self._focus_handler)
                     except Exception as e:
-                        print(f"Failed to remove focus handler: {e}")
+                        logger.debug(f"Failed to remove focus handler: {e}")
                     self._focus_handler = None
 
                 # --- Structure Monitoring ---
@@ -110,7 +115,7 @@ class WatchDog:
                         target = self._active_structure_element if self._active_structure_element else self.uia.GetRootElement()
                         self.uia.RemoveStructureChangedEventHandler(target, self._structure_handler)
                     except Exception as e:
-                        print(f"Failed to remove structure handler: {e}")
+                        logger.debug(f"Failed to remove structure handler: {e}")
                     self._structure_handler = None
                     self._active_structure_element = None
                     is_active = False
@@ -124,7 +129,7 @@ class WatchDog:
                         self.uia.AddStructureChangedEventHandler(target, scope, None, self._structure_handler)
                         self._active_structure_element = target
                     except Exception as e:
-                        print(f"Failed to add structure handler: {e}")
+                        logger.debug(f"Failed to add structure handler: {e}")
 
                 # --- Property Monitoring ---
                 config_changed = (self._property_element != self._active_property_element) or \
@@ -172,17 +177,23 @@ class WatchDog:
                 try: 
                     self.uia.RemoveFocusChangedEventHandler(self._focus_handler)
                 except: pass
+                self._focus_handler = None
             
             if self._structure_handler:
                 try:
                     target = self._active_structure_element if self._active_structure_element else self.uia.GetRootElement()
                     self.uia.RemoveStructureChangedEventHandler(target, self._structure_handler)
                 except: pass
+                self._structure_handler = None
+                self._active_structure_element = None
 
             if self._property_handler:
                 try:
                     target = self._active_property_element if self._active_property_element else self.uia.GetRootElement()
                     self.uia.RemovePropertyChangedEventHandler(target, self._property_handler)
                 except: pass
+                self._property_handler = None
+                self._active_property_element = None
+                self._active_property_ids = None
             
             comtypes.CoUninitialize()

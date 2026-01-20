@@ -31,6 +31,7 @@ class Tree:
         )
         self.dom_info:Optional[DOMInfo]=None
         self.dom_bounding_box:BoundingBox=None
+        self.executor = ThreadPoolExecutor(max_workers=20)
 
     def get_state(self,active_app:App,other_apps:list[App],use_dom:bool=False)->TreeState:
         root=GetRootControl()
@@ -44,35 +45,35 @@ class Tree:
 
     def get_appwise_nodes(self,apps:list[Control],use_dom:bool=False)-> tuple[list[TreeElementNode],list[ScrollElementNode],list[TextElementNode]]:
         interactive_nodes, scrollable_nodes,dom_informative_nodes = [], [], []
-        with ThreadPoolExecutor() as executor:
-            retry_counts = {app: 0 for app in apps}
-            future_to_app = {
-                executor.submit(
-                    self.get_nodes, app, 
-                    self.desktop.is_app_browser(app),
-                    use_dom
-                ): app 
-                for app in apps
-            }
-            while future_to_app:  # keep running until no pending futures
-                for future in as_completed(list(future_to_app)):
-                    app = future_to_app.pop(future)  # remove completed future
-                    try:
-                        result = future.result()
-                        if result:
-                            element_nodes, scroll_nodes,informative_nodes = result
-                            interactive_nodes.extend(element_nodes)
-                            scrollable_nodes.extend(scroll_nodes)
-                            dom_informative_nodes.extend(informative_nodes)
-                    except Exception as e:
-                        retry_counts[app] += 1
-                        logger.debug(f"Error in processing node {app.Name}, retry attempt {retry_counts[app]}\nError: {e}")
-                        if retry_counts[app] < THREAD_MAX_RETRIES:
-                            logger.debug(f"Retrying {app.Name} for the {retry_counts[app]}th time")
-                            new_future = executor.submit(self.get_nodes, app, self.desktop.is_app_browser(app),use_dom)
-                            future_to_app[new_future] = app
-                        else:
-                            logger.error(f"Task failed completely for {app.Name} after {THREAD_MAX_RETRIES} retries")
+        
+        retry_counts = {app: 0 for app in apps}
+        future_to_app = {
+            self.executor.submit(
+                self.get_nodes, app, 
+                self.desktop.is_app_browser(app),
+                use_dom
+            ): app 
+            for app in apps
+        }
+        while future_to_app:  # keep running until no pending futures
+            for future in as_completed(list(future_to_app)):
+                app = future_to_app.pop(future)  # remove completed future
+                try:
+                    result = future.result()
+                    if result:
+                        element_nodes, scroll_nodes,informative_nodes = result
+                        interactive_nodes.extend(element_nodes)
+                        scrollable_nodes.extend(scroll_nodes)
+                        dom_informative_nodes.extend(informative_nodes)
+                except Exception as e:
+                    retry_counts[app] += 1
+                    logger.debug(f"Error in processing node {app.Name}, retry attempt {retry_counts[app]}\nError: {e}")
+                    if retry_counts[app] < THREAD_MAX_RETRIES:
+                        logger.debug(f"Retrying {app.Name} for the {retry_counts[app]}th time")
+                        new_future = self.executor.submit(self.get_nodes, app, self.desktop.is_app_browser(app),use_dom)
+                        future_to_app[new_future] = app
+                    else:
+                        logger.error(f"Task failed completely for {app.Name} after {THREAD_MAX_RETRIES} retries")
         return interactive_nodes,scrollable_nodes,dom_informative_nodes
     
     def iou_bounding_box(self,window_box: Rect,element_box: Rect,) -> BoundingBox:
