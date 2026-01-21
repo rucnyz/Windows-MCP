@@ -2,8 +2,8 @@ from windows_mcp.desktop.config import BROWSER_NAMES, PROCESS_PER_MONITOR_DPI_AW
 from windows_mcp.desktop.views import DesktopState, App, Status, Size
 from windows_mcp.tree.views import BoundingBox, TreeElementNode
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from PIL import ImageGrab, ImageFont, ImageDraw, Image
 from windows_mcp.tree.service import Tree
-from PIL import Image, ImageFont, ImageDraw
 from locale import getpreferredencoding
 from contextlib import contextmanager
 from typing import Optional,Literal
@@ -80,6 +80,7 @@ class Desktop:
                 buffered = io.BytesIO()
                 screenshot.save(buffered, format="PNG")
                 screenshot = buffered.getvalue()
+                buffered.close()
         else:
             screenshot=None
             
@@ -548,14 +549,15 @@ class Desktop:
         return dpi / 96.0
     
     def get_screen_size(self)->Size:
-        width, height = uia.GetScreenSize()
+        width, height = uia.GetVirtualScreenSize()
         return Size(width=width,height=height)
 
-    def get_resolution(self)->tuple[int,int]:
-        return uia.GetScreenSize()
-
     def get_screenshot(self)->Image.Image:
-        return pg.screenshot()
+        try:
+            return ImageGrab.grab(all_screens=True)
+        except Exception as e:
+            logger.warning(f"Failed to capture all screens: {e}. Fallback to primary.")
+            return pg.screenshot()
 
     def get_annotated_screenshot(self, nodes: list[TreeElementNode]) -> Image.Image:
         screenshot = self.get_screenshot()
@@ -577,16 +579,19 @@ class Desktop:
         def get_random_color():
             return "#{:06x}".format(random.randint(0, 0xFFFFFF))
 
+        left_offset, top_offset, _, _ = uia.GetVirtualScreenRect()
+
         def draw_annotation(label, node: TreeElementNode):
             box = node.bounding_box
             color = get_random_color()
 
             # Scale and pad the bounding box also clip the bounding box
+            # Adjust for virtual screen offset so coordinates map to the screenshot image
             adjusted_box = (
-                int(box.left) + padding,
-                int(box.top) + padding,
-                int(box.right) + padding,
-                int(box.bottom) + padding
+                int(box.left - left_offset) + padding,
+                int(box.top - top_offset) + padding,
+                int(box.right - left_offset) + padding,
+                int(box.bottom - top_offset) + padding
             )
             # Draw bounding box
             draw.rectangle(adjusted_box, outline=color, width=2)

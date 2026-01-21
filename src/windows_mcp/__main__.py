@@ -16,15 +16,16 @@ import os
 
 load_dotenv()
 
+MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT = 1920, 1080
 pg.FAILSAFE=False
 pg.PAUSE=1.0
 
 desktop=Desktop()
 watchdog=WatchDog()
 cursor=SystemCursor()
+screen_size=desktop.get_screen_size()
 windows_version=desktop.get_windows_version()
 default_language=desktop.get_default_language()
-screen_width,screen_height=desktop.get_resolution()
 watchdog.set_focus_callback(desktop.tree._on_focus_change)
 
 instructions=dedent(f'''
@@ -97,9 +98,8 @@ def powershell_tool(command: str, ctx: Context = None) -> str:
 @with_analytics(analytics, "State-Tool")
 def state_tool(use_vision:bool=False,use_dom:bool=False, ctx: Context = None):
     # Calculate scale factor to cap resolution at 1080p (1920x1080)
-    max_width, max_height = 1920, 1080
-    scale_width = max_width / screen_width if screen_width > max_width else 1.0
-    scale_height = max_height / screen_height if screen_height > max_height else 1.0
+    scale_width = MAX_IMAGE_WIDTH / screen_size.width if screen_size.width > MAX_IMAGE_WIDTH else 1.0
+    scale_height = MAX_IMAGE_HEIGHT / screen_size.height if screen_size.height > MAX_IMAGE_HEIGHT else 1.0
     scale = min(scale_width, scale_height)  # Use the smaller scale to ensure both dimensions fit
     
     desktop_state=desktop.get_state(use_vision=use_vision,use_dom=use_dom,as_bytes=True,scale=scale)
