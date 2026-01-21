@@ -123,16 +123,4 @@ class CachedControlHelper:
         except Exception as e:
             logger.debug(f"Failed to get cached children, falling back to regular access: {e}")
             return node.GetChildren()
-    
-    @staticmethod
-    def invalidate_cache(node: Control) -> None:
-        """
-        Invalidate the cache marker on a control.
-        
-        This forces subsequent property accesses to use live data.
-        
-        Args:
-            node: The control to invalidate
-        """
-        if hasattr(node, '_is_cached'):
-            delattr(node, '_is_cached')
+
