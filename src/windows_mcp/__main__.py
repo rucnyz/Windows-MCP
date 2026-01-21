@@ -195,16 +195,16 @@ def scroll_tool(loc:list[int]=None,type:Literal['horizontal','vertical']='vertic
     )
     )
 @with_analytics(analytics, "Move-Tool")
-def move_tool(to_loc:list[int], drag:bool=False, ctx: Context = None)->str:
-    if len(to_loc) != 2:
-        raise ValueError("to_loc must be a list of exactly 2 integers [x, y]")
-    x,y=to_loc[0],to_loc[1]
+def move_tool(loc:list[int], drag:bool=False, ctx: Context = None)->str:
+    if len(loc) != 2:
+        raise ValueError("loc must be a list of exactly 2 integers [x, y]")
+    x,y=loc[0],loc[1]
     if drag:
-        desktop.drag(to_loc)
+        desktop.drag(loc)
         return f'Dragged to ({x},{y}).'
-    
-    desktop.move(to_loc)
-    return f'Moved the mouse pointer to ({x},{y}).'
+    else:
+        desktop.move(loc)
+        return f'Moved the mouse pointer to ({x},{y}).'
 
 @mcp.tool(
     name='Shortcut-Tool',
