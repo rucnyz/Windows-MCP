@@ -184,27 +184,8 @@ def scroll_tool(loc:list[int]=None,type:Literal['horizontal','vertical']='vertic
     return f'Scrolled {type} {direction} by {wheel_times} wheel times'+f' at ({loc[0]},{loc[1]}).' if loc else ''
 
 @mcp.tool(
-    name='Drag-Tool',
-    description='Performs drag-and-drop from current mouse position to destination coordinates [x, y]. Click or move to source position first, then call this tool with target coordinates. Use for moving files, reordering items, resizing windows, or any drag-drop UI interactions.',
-    annotations=ToolAnnotations(
-        title="Drag Tool",
-        readOnlyHint=False,
-        destructiveHint=True,
-        idempotentHint=False,
-        openWorldHint=False
-    )
-    )
-@with_analytics(analytics, "Drag-Tool")
-def drag_tool(to_loc:list[int], ctx: Context = None)->str:
-    if len(to_loc) != 2:
-        raise ValueError("to_loc must be a list of exactly 2 integers [x, y]")
-    desktop.drag(to_loc)
-    x2,y2=to_loc[0],to_loc[1]
-    return f'Dragged the element to ({x2},{y2}).'
-
-@mcp.tool(
     name='Move-Tool',
-    description='Moves mouse cursor to coordinates [x, y] without clicking. Use for hovering to reveal tooltips/menus, positioning cursor before drag operations, or triggering hover-based UI changes. Does not interact with elements.',
+    description='Moves mouse cursor to coordinates [x, y]. Set drag=True to perform a drag-and-drop operation from the current mouse position to the target coordinates. Default (drag=False) is a simple cursor move (hover).',
     annotations=ToolAnnotations(
         title="Move Tool",
         readOnlyHint=False,
@@ -214,10 +195,14 @@ def drag_tool(to_loc:list[int], ctx: Context = None)->str:
     )
     )
 @with_analytics(analytics, "Move-Tool")
-def move_tool(to_loc:list[int], ctx: Context = None)->str:
+def move_tool(to_loc:list[int], drag:bool=False, ctx: Context = None)->str:
     if len(to_loc) != 2:
         raise ValueError("to_loc must be a list of exactly 2 integers [x, y]")
     x,y=to_loc[0],to_loc[1]
+    if drag:
+        desktop.drag(to_loc)
+        return f'Dragged to ({x},{y}).'
+    
     desktop.move(to_loc)
     return f'Moved the mouse pointer to ({x},{y}).'
 
