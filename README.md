@@ -70,6 +70,8 @@ mcp-name: io.github.CursorTouch/Windows-MCP
 
 ## 🛠️Installation
 
+**Note:** When you install this MCP server for the first time it may take a minute or two because of installing the dependencies in `pyproject.toml`. In the first run the server may timeout ignore it and restart it.
+
 ### Prerequisites
 
 - Python 3.13+

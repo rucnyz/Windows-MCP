@@ -1,11 +1,10 @@
 from windows_mcp.analytics import PostHogAnalytics, with_analytics
+from windows_mcp.desktop.service import Desktop,Size
 from windows_mcp.watchdog.service import WatchDog
-from windows_mcp.desktop.service import Desktop
 from contextlib import asynccontextmanager
 from fastmcp.utilities.types import Image
 from mcp.types import ToolAnnotations
 from typing import Literal, Optional
-from humancursor import SystemCursor
 from fastmcp import FastMCP, Context
 from dotenv import load_dotenv
 from textwrap import dedent
@@ -23,6 +22,7 @@ pg.PAUSE=1.0
 desktop: Optional[Desktop] = None
 watchdog: Optional[WatchDog] = None
 analytics: Optional[PostHogAnalytics] = None
+screen_size:Optional[Size]=None
 
 instructions=dedent(f'''
 Windows MCP server provides tools to interact directly with the Windows desktop, 
@@ -32,13 +32,14 @@ thus enabling to operate the desktop on the user's behalf.
 @asynccontextmanager
 async def lifespan(app: FastMCP):
     """Runs initialization code before the server starts and cleanup code after it shuts down."""
-    global desktop, watchdog, analytics
+    global desktop, watchdog, analytics,screen_size
     
     # Initialize components here instead of at module level
     if os.getenv("ANONYMIZED_TELEMETRY", "true").lower() != "false":
         analytics = PostHogAnalytics()
     desktop = Desktop()
     watchdog = WatchDog()   
+    screen_size=desktop.get_screen_size()
     watchdog.set_focus_callback(desktop.tree._on_focus_change)
     
     try:
