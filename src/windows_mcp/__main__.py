@@ -20,34 +20,34 @@ MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT = 1920, 1080
 pg.FAILSAFE=False
 pg.PAUSE=1.0
 
-desktop=Desktop()
-watchdog=WatchDog()
-cursor=SystemCursor()
-screen_size=desktop.get_screen_size()
-windows_version=desktop.get_windows_version()
-default_language=desktop.get_default_language()
-watchdog.set_focus_callback(desktop.tree._on_focus_change)
+desktop: Optional[Desktop] = None
+watchdog: Optional[WatchDog] = None
+analytics: Optional[PostHogAnalytics] = None
 
 instructions=dedent(f'''
-Windows MCP server provides tools to interact directly with the {windows_version} desktop, 
+Windows MCP server provides tools to interact directly with the Windows desktop, 
 thus enabling to operate the desktop on the user's behalf.
 ''')
-
-# Initialize analytics at module level to be used in decorators
-if os.getenv("ANONYMIZED_TELEMETRY", "true").lower() == "false":
-    analytics = None
-else:
-    analytics = PostHogAnalytics()
 
 @asynccontextmanager
 async def lifespan(app: FastMCP):
     """Runs initialization code before the server starts and cleanup code after it shuts down."""
+    global desktop, watchdog, analytics
+    
+    # Initialize components here instead of at module level
+    if os.getenv("ANONYMIZED_TELEMETRY", "true").lower() != "false":
+        analytics = PostHogAnalytics()
+    desktop = Desktop()
+    watchdog = WatchDog()   
+    watchdog.set_focus_callback(desktop.tree._on_focus_change)
+    
     try:
         watchdog.start()
         await asyncio.sleep(1) # Simulate startup latency
         yield
     finally:
-        watchdog.stop()
+        if watchdog:
+            watchdog.stop()
         if analytics:
             await analytics.close()
 
@@ -70,7 +70,7 @@ def app_tool(mode:Literal['launch','resize','switch'],name:str|None=None,window_
     
 @mcp.tool(
     name='Powershell-Tool',
-    description='Execute PowerShell commands directly on the Windows system and return output with status code. Supports all PowerShell cmdlets, scripts, and system commands. Use for file operations, system queries, and administrative tasks.',
+    description='A comprehensive system tool for executing any PowerShell commands. Use it to navigate the file system, manage files and processes, and execute system-level operations. Capable of accessing web content (e.g., via Invoke-WebRequest), interacting with network resources, and performing complex administrative tasks. This tool provides full access to the underlying operating system capabilities, making it the primary interface for system automation, scripting, and deep system interaction.',
     annotations=ToolAnnotations(
         title="Powershell Tool",
         readOnlyHint=False,
@@ -107,10 +107,7 @@ def state_tool(use_vision:bool=False,use_dom:bool=False, ctx: Context = None):
     scrollable_elements=desktop_state.tree_state.scrollable_elements_to_string()
     apps=desktop_state.apps_to_string()
     active_app=desktop_state.active_app_to_string()
-    return [dedent(f'''
-    Default Language of User:
-    {default_language} with encoding: {desktop.encoding}
-                            
+    return [dedent(f'''        
     Focused App:
     {active_app}
 

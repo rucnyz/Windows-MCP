@@ -406,30 +406,12 @@ class Desktop:
         is_name = "Overlay" in element.Name.strip()
         return no_children or is_name
 
-    def get_controls_handles(self,optimized:bool=False):
+    def get_controls_handles(self):
         handles = set()
-        if optimized:
-            # For even more faster results (still under development)
-            def callback(hwnd, _):
-                if win32gui.IsWindowVisible(hwnd) and vdm.is_window_on_current_desktop(hwnd):
-                    handles.add(hwnd)
-            win32gui.EnumWindows(callback, None)
-
-            if desktop_hwnd:= win32gui.FindWindow('Progman',None):
-                handles.add(desktop_hwnd)
-            if taskbar_hwnd:= win32gui.FindWindow('Shell_TrayWnd',None):
-                handles.add(taskbar_hwnd)
-            if secondary_taskbar_hwnd:= win32gui.FindWindow('Shell_SecondaryTrayWnd',None):
-                handles.add(secondary_taskbar_hwnd)
-            if start_hwnd:= win32gui.FindWindow('Windows.UI.Core.CoreWindow','Start'):
-                handles.add(start_hwnd)
-            if search_hwnd:= win32gui.FindWindow('Windows.UI.Core.CoreWindow','Search'):
-                handles.add(search_hwnd)
-        else:
-            root=uia.GetRootControl()
-            children=root.GetChildren()
-            for child in children:
-                handles.add(child.NativeWindowHandle)
+        root=uia.GetRootControl()
+        children=root.GetChildren()
+        for child in children:
+            handles.add(child.NativeWindowHandle)
         return handles
 
     def get_active_app(self,apps:list[App]|None=None)->App|None:
