@@ -269,15 +269,33 @@ class Desktop:
         foreground_handle=win32gui.GetForegroundWindow()
         foreground_thread,_=win32process.GetWindowThreadProcessId(foreground_handle)
         target_thread,_=win32process.GetWindowThreadProcessId(target_handle)
+        
+        # Validate thread IDs before attempting to attach
+        if not foreground_thread or not target_thread or foreground_thread == target_thread:
+            # If threads are invalid or the same, just try to set foreground directly
+            try:
+                win32gui.SetForegroundWindow(target_handle)
+                win32gui.BringWindowToTop(target_handle)
+            except Exception as e:
+                logger.error(f'Failed to bring window to top (direct): {e}')
+            return
+        
+        attached = False
         try:
             ctypes.windll.user32.AllowSetForegroundWindow(-1)
             win32process.AttachThreadInput(foreground_thread,target_thread,True)
+            attached = True
             win32gui.SetForegroundWindow(target_handle)
             win32gui.BringWindowToTop(target_handle)
         except Exception as e:
             logger.error(f'Failed to bring window to top: {e}')
         finally:
-            win32process.AttachThreadInput(foreground_thread,target_thread,False)
+            # Only detach if we successfully attached
+            if attached:
+                try:
+                    win32process.AttachThreadInput(foreground_thread,target_thread,False)
+                except Exception as e:
+                    logger.error(f'Failed to detach thread input: {e}')
     
     def get_element_handle_from_label(self,label:int)->uia.Control:
         tree_state=self.desktop_state.tree_state
