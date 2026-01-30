@@ -1,9 +1,9 @@
 {
   "manifest_version": "0.2",
   "name": "Windows-MCP",
-  "version": "0.5.6",
+  "version": "0.6.0",
   "description": "MCP Server that enables Claude to interact with Windows OS",
-  "long_description": "Windows MCP is an open-source project that enables seamless integration between AI agents and the Windows operating system. Acting as an MCP server, it bridges the gap between large language models (LLMs) and the Windows OS, allowing agents to perform tasks such as **file navigation, application control, UI interaction, QA testing, and more**.\n\n**KEY FEATURES**\n- **Seamless Windows Integration**: Interacts natively with Windows UI elements, opens applications, controls windows, simulates user input, and more.\n- **Use Any LLM (Vision Optional)**: Does not rely on traditional computer vision techniques or fine-tuned models. Works with any LLM, reducing complexity and setup time.\n- **Rich Toolset for UI Automation**: Includes tools for keyboard and mouse control, window management, and capturing window or UI state.\n- **Lightweight & Open-Source**: Minimal dependencies with full source code available under the MIT license.\n- **Customizable & Extendable**: Easily adapt or extend tools to suit custom automation workflows or AI integrations.\n- **Real-Time Interaction**: Typical latency between actions ranges from `0.4` to `1.2` seconds, depending on system load, active applications, and LLM inference speed.\n\n**MINIMUM REQUIREMENTS**\n- Python 3.13 or higher\n- UV Package Manager\nThis MCP server requires UV, a fast Python package manager.\nInstallation:\n`curl -LsSf https://astral.sh/uv/install.sh | sh`\nFor detailed installation instructions, [see the UV documentation](https://github.com/astral-sh/uv)",
+  "long_description": "Windows MCP is an open-source project that enables seamless integration between AI agents and the Windows operating system. Acting as an MCP server, it bridges the gap between large language models (LLMs) and the Windows OS, allowing agents to perform tasks such as **file navigation, application control, UI interaction, QA testing, and more**.\n\n**KEY FEATURES**\n- **Seamless Windows Integration**: Interacts natively with Windows UI elements, opens applications, controls windows, simulates user input, and more.\n- **Use Any LLM (Vision Optional)**: Does not rely on traditional computer vision techniques or fine-tuned models. Works with any LLM, reducing complexity and setup time.\n- **Rich Toolset for UI Automation**: Includes tools for keyboard and mouse control, window management, and capturing window or UI state.\n- **Lightweight & Open-Source**: Minimal dependencies with full source code available under the MIT license.\n- **Customizable & Extendable**: Easily adapt or extend tools to suit custom automation workflows or AI integrations.\n- **Real-Time Interaction**: Typical latency between actions ranges from `0.2` to `0.9` seconds, depending on system load, active applications, and LLM inference speed.\n\n**MINIMUM REQUIREMENTS**\n- Python 3.13 or higher\n- UV Package Manager\nThis MCP server requires UV, a fast Python package manager.\nInstallation:\n`curl -LsSf https://astral.sh/uv/install.sh | sh`\nFor detailed installation instructions, [see the UV documentation](https://github.com/astral-sh/uv)",
   "author": {
     "name": "CursorTouch",
     "url": "https://cursortouch.com/"
@@ -44,7 +44,7 @@
   "tools": [
     {
       "name": "App",
-      "description": "Manages Windows applications with three modes: 'launch' (start app by name), 'resize' (set window position/size using window_loc=[x,y] and window_size=[width,height]), 'switch' (activate app by name). Essential for application lifecycle management."
+      "description": "Manages Windows applications with three modes: 'launch' (opens the prescibed application), 'resize' (adjusts active window size/position), 'switch' (brings specific window into focus)."
     },
     {
       "name": "Shell",
@@ -52,15 +52,15 @@
     },
     {
       "name": "Snapshot",
-      "description": "Captures complete desktop state including: system language, focused/opened apps, interactive elements (buttons, text fields, links, menus with coordinates), and scrollable areas. Set use_vision=True to include screenshot. Set use_dom=True for browser content to get web page elements instead of browser UI. Always call this first to understand the current desktop state before taking actions."
+      "description": "Captures complete desktop state including: system language, focused/opened windows, interactive elements (buttons, text fields, links, menus with coordinates), and scrollable areas. Set use_vision=True to include screenshot. Set use_dom=True for browser content to get web page elements instead of browser UI. Always call this first to understand the current desktop state before taking actions."
     },
     {
       "name": "Click",
-      "description": "Performs mouse clicks at specified coordinates [x, y]. Supports button types: left (default), right (context menu), middle. Supports clicks: 1 (single), 2 (double), 3 (triple). Always use coordinates from State-Tool output to ensure accuracy."
+      "description": "Performs mouse clicks at specified coordinates [x, y]. Supports button types: 'left' for selection/activation, 'right' for context menus, 'middle'. Supports clicks: 0=hover only (no click), 1=single click (select/focus), 2=double click (open/activate)."
     },
     {
       "name": "Type",
-      "description": "Types text at specified coordinates [x, y]. Set clear=True to clear existing text first (Ctrl+A then type), clear=False to append. Set press_enter=True to submit after typing. Always click on the target input field first to ensure focus."
+      "description": "Types text at specified coordinates [x, y]. Set clear=True to clear existing text first, False to append. Set press_enter=True to submit after typing. Set caret_position to 'start' (beginning), 'end' (end), or 'idle' (default)."
     },
     {
       "name": "Scroll",
@@ -80,7 +80,15 @@
     },
     {
       "name": "Scrape",
-      "description": "Fetch content from a URL or the active browser tab. By default (use_dom=False), performs a lightweight HTTP request to the URL and returns markdown content of complete webpage. Note: Some websites may block automated HTTP requests. If this fails, open the page in a browser and retry with use_dom=True to extract visible text from the active tab's DOM within the viewport using the accessibility tree data."
+      "description": "Fetch content from a URL or the active browser tab. By default, performs a lightweight HTTP request to the URL. If you need to extract text from the active tab's DOM within the viewport, ensure the page is open in a browser and use Snapshot with use_dom=True first, then the agent will handle extraction."
+    },
+    {
+      "name": "MultiSelect",
+      "description": "Selects multiple items such as files, folders, or checkboxes if press_ctrl=True, or performs multiple clicks if False."
+    },
+    {
+      "name": "MultiEdit",
+      "description": "Enters text into multiple input fields at specified coordinates [[x,y,text], ...]."
     }
   ],
   "compatibility": {

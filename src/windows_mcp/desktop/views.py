@@ -6,9 +6,15 @@ from PIL.Image import Image
 from enum import Enum
 
 class Browser(Enum):
-    CHROME='Chrome'
-    EDGE='Edge'
-    FIREFOX='Firefox'
+    CHROME='chrome'
+    EDGE='msedge'
+    FIREFOX='firefox'
+
+    @classmethod
+    def has_process(cls, process_name: str) -> bool:
+        if not hasattr(cls, '_process_names'):
+            cls._process_names = {f'{b.value}.exe' for b in cls}
+        return process_name.lower() in cls._process_names
 
 class Status(Enum):
     MAXIMIZED='Maximized'
@@ -18,9 +24,8 @@ class Status(Enum):
 
 
 @dataclass
-class App:
+class Window:
     name:str
-    runtime_id:tuple[int]
     is_browser:bool
     depth:int
     status:Status
@@ -41,20 +46,32 @@ class Size:
 
 @dataclass
 class DesktopState:
-    apps:list[App]
-    active_app:Optional[App]
+    active_desktop:dict
+    all_desktops:list[dict]
+    active_window:Optional[Window]
+    windows:list[Window]
     screenshot:Optional[Image]=None
     tree_state:Optional[TreeState]=None
 
-    def active_app_to_string(self):
-        if self.active_app is None:
-            return 'No active app found'
-        headers = ["Name", "Depth", "Status", "Width", "Height", "Handle"]
-        return tabulate([self.active_app.to_row()], headers=headers, tablefmt="simple")
+    def active_desktop_to_string(self):
+        desktop_name=self.active_desktop.get('name')
+        headers=["Name"]
+        return tabulate([[desktop_name]], headers=headers, tablefmt="simple")
 
-    def apps_to_string(self):
-        if not self.apps:
-            return 'No apps running in background'
+    def desktops_to_string(self):
+        headers=["Name"]
+        rows=[[desktop.get("name")] for desktop in self.all_desktops]
+        return tabulate(rows, headers=headers, tablefmt="simple")
+
+    def active_window_to_string(self):
+        if not self.active_window:
+            return 'No active window found'
         headers = ["Name", "Depth", "Status", "Width", "Height", "Handle"]
-        rows = [app.to_row() for app in self.apps]
+        return tabulate([self.active_window.to_row()], headers=headers, tablefmt="simple")
+
+    def windows_to_string(self):
+        if not self.windows:
+            return 'No windows found'
+        headers = ["Name", "Depth", "Status", "Width", "Height", "Handle"]
+        rows = [window.to_row() for window in self.windows]
         return tabulate(rows, headers=headers, tablefmt="simple")

@@ -56,7 +56,7 @@ mcp=FastMCP(name='windows-mcp',instructions=instructions,lifespan=lifespan)
 
 @mcp.tool(
     name="App",
-    description="Manages Windows applications with three modes: 'launch' (start app by name), 'resize' (set window position/size using window_loc=[x,y] and window_size=[width,height]), 'switch' (activate app by name). Essential for application lifecycle management.",
+    description="Manages Windows applications with three modes: 'launch' (opens the prescibed application), 'resize' (adjusts active window size/position), 'switch' (brings specific window into focus).",
     annotations=ToolAnnotations(
         title="App",
         readOnlyHint=False,
@@ -87,7 +87,7 @@ def powershell_tool(command: str,timeout:int=10, ctx: Context = None) -> str:
 
 @mcp.tool(
     name='Snapshot',
-    description='Captures complete desktop state including: system language, focused/opened apps, interactive elements (buttons, text fields, links, menus with coordinates), and scrollable areas. Set use_vision=True to include screenshot. Set use_dom=True for browser content to get web page elements instead of browser UI. Always call this first to understand the current desktop state before taking actions.',
+    description='Captures complete desktop state including: system language, focused/opened windows, interactive elements (buttons, text fields, links, menus with coordinates), and scrollable areas. Set use_vision=True to include screenshot. Set use_dom=True for browser content to get web page elements instead of browser UI. Always call this first to understand the current desktop state before taking actions.',
     annotations=ToolAnnotations(
         title="Snapshot",
         readOnlyHint=True,
@@ -106,14 +106,22 @@ def state_tool(use_vision:bool=False,use_dom:bool=False, ctx: Context = None):
     desktop_state=desktop.get_state(use_vision=use_vision,use_dom=use_dom,as_bytes=True,scale=scale)
     interactive_elements=desktop_state.tree_state.interactive_elements_to_string()
     scrollable_elements=desktop_state.tree_state.scrollable_elements_to_string()
-    apps=desktop_state.apps_to_string()
-    active_app=desktop_state.active_app_to_string()
-    return [dedent(f'''        
-    Focused App:
-    {active_app}
+    windows=desktop_state.windows_to_string()
+    active_window=desktop_state.active_window_to_string()
+    active_desktop=desktop_state.active_desktop_to_string()
+    all_desktops=desktop_state.desktops_to_string()
+    return [dedent(f'''
+    Active Desktop:
+    {active_desktop}
 
-    Opened Apps:
-    {apps}
+    All Desktops:
+    {all_desktops}
+        
+    Focused Window:
+    {active_window}
+
+    Opened Windows:
+    {windows}
 
     List of Interactive Elements:
     {interactive_elements or 'No interactive elements found.'}
@@ -124,7 +132,7 @@ def state_tool(use_vision:bool=False,use_dom:bool=False, ctx: Context = None):
 
 @mcp.tool(
     name='Click',
-    description='Performs mouse clicks at specified coordinates [x, y]. Supports button types: left (default), right (context menu), middle. Supports clicks: 1 (single), 2 (double), 3 (triple). Always use coordinates from State-Tool output to ensure accuracy.',
+    description="Performs mouse clicks at specified coordinates [x, y]. Supports button types: 'left' for selection/activation, 'right' for context menus, 'middle'. Supports clicks: 0=hover only (no click), 1=single click (select/focus), 2=double click (open/activate).",
     annotations=ToolAnnotations(
         title="Click",
         readOnlyHint=False,
@@ -139,12 +147,12 @@ def click_tool(loc:list[int],button:Literal['left','right','middle']='left',clic
         raise ValueError("Location must be a list of exactly 2 integers [x, y]")
     x,y=loc[0],loc[1]
     desktop.click(loc=loc,button=button,clicks=clicks)
-    num_clicks={1:'Single',2:'Double',3:'Triple'}
+    num_clicks={0:'Hover',1:'Single',2:'Double'}
     return f'{num_clicks.get(clicks)} {button} clicked at ({x},{y}).'
 
 @mcp.tool(
     name='Type',
-    description='Types text at specified coordinates [x, y]. Set clear=True to clear existing text first (Ctrl+A then type), clear=False to append. Set press_enter=True to submit after typing. Always click on the target input field first to ensure focus.',
+    description="Types text at specified coordinates [x, y]. Set clear=True to clear existing text first, False to append. Set press_enter=True to submit after typing. Set caret_position to 'start' (beginning), 'end' (end), or 'idle' (default).",
     annotations=ToolAnnotations(
         title="Type",
         readOnlyHint=False,
@@ -154,11 +162,11 @@ def click_tool(loc:list[int],button:Literal['left','right','middle']='left',clic
     )
     )
 @with_analytics(analytics, "Type-Tool")
-def type_tool(loc:list[int],text:str,clear:bool=False,press_enter:bool=False, ctx: Context = None)->str:
+def type_tool(loc:list[int],text:str,clear:bool=False,caret_position:Literal['start', 'idle', 'end']='idle',press_enter:bool=False, ctx: Context = None)->str:
     if len(loc) != 2:
         raise ValueError("Location must be a list of exactly 2 integers [x, y]")
     x,y=loc[0],loc[1]
-    desktop.type(loc=loc,text=text,clear=clear,press_enter=press_enter)
+    desktop.type(loc=loc,text=text,caret_position=caret_position,clear=clear,press_enter=press_enter)
     return f'Typed {text} at ({x},{y}).'
 
 @mcp.tool(
@@ -262,7 +270,41 @@ def scrape_tool(url:str,use_dom:bool=False, ctx: Context = None)->str:
     content='\n'.join([node.text for node in tree_state.dom_informative_nodes])
     header_status = "Reached top" if vertical_scroll_percent <= 0 else "Scroll up to see more"
     footer_status = "Reached bottom" if vertical_scroll_percent >= 100 else "Scroll down to see more"
-    return f'URL:{url}\nContent:\n[{header_status}]\n{content}\n[{footer_status}]'
+    return f'URL:{url}\nContent:\n{header_status}\n{content}\n{footer_status}'
+
+@mcp.tool(
+    name='MultiSelect',
+    description="Selects multiple items such as files, folders, or checkboxes if press_ctrl=True, or performs multiple clicks if False.",
+    annotations=ToolAnnotations(
+        title="MultiSelect",
+        readOnlyHint=False,
+        destructiveHint=True,
+        idempotentHint=False,
+        openWorldHint=False
+    )
+)
+@with_analytics(analytics, "Multi-Select-Tool")
+def multi_select_tool(locs:list[list[int]], press_ctrl:bool=True, ctx: Context = None)->str:
+    desktop.multi_select(press_ctrl,locs)
+    elements_str = '\n'.join([f"({loc[0]},{loc[1]})" for loc in locs])
+    return f"Multi-selected elements at:\n{elements_str}"
+
+@mcp.tool(
+    name='MultiEdit',
+    description="Enters text into multiple input fields at specified coordinates [[x,y,text], ...].",
+    annotations=ToolAnnotations(
+        title="MultiEdit",
+        readOnlyHint=False,
+        destructiveHint=True,
+        idempotentHint=False,
+        openWorldHint=False
+    )
+)
+@with_analytics(analytics, "Multi-Edit-Tool")
+def multi_edit_tool(locs:list[list], ctx: Context = None)->str:
+    desktop.multi_edit(locs)
+    elements_str = ', '.join([f"({e[0]},{e[1]}) with text '{e[2]}'" for e in locs])
+    return f"Multi-edited elements at: {elements_str}"
 
 
 @click.command()

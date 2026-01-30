@@ -1,5 +1,6 @@
-from windows_mcp.desktop.config import BROWSER_NAMES, PROCESS_PER_MONITOR_DPI_AWARE
-from windows_mcp.desktop.views import DesktopState, App, Status, Size
+from windows_mcp.vdm.core import get_all_desktops, get_current_desktop, is_window_on_current_desktop
+from windows_mcp.desktop.views import DesktopState, Window, Browser, Status, Size
+from windows_mcp.desktop.config import PROCESS_PER_MONITOR_DPI_AWARE
 from windows_mcp.tree.views import BoundingBox, TreeElementNode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import ImageGrab, ImageFont, ImageDraw, Image
@@ -50,20 +51,27 @@ class Desktop:
         start_time = time()
 
         controls_handles=self.get_controls_handles() # Taskbar,Program Manager,Apps, Dialogs
-        apps,apps_handles=self.get_apps(controls_handles=controls_handles) # Apps
-        active_app=self.get_active_app(apps=apps) #Active App
-        active_app_handle=active_app.handle if active_app else None
+        windows,windows_handles=self.get_windows(controls_handles=controls_handles) # Apps
+        active_window=self.get_active_window(windows=windows) #Active Window
+        active_window_handle=active_window.handle if active_window else None
 
-        if active_app is not None and active_app in apps:
-            apps.remove(active_app)
+        try:
+            active_desktop=get_current_desktop()
+            all_desktops=get_all_desktops()
+        except RuntimeError:
+            active_desktop = {'id': '00000000-0000-0000-0000-000000000000', 'name': 'Default Desktop'}
+            all_desktops = [active_desktop]
 
-        logger.debug(f"Active app: {active_app or 'No Active App Found'}")
-        logger.debug(f"Apps: {apps}")
+        if active_window is not None and active_window in windows:
+            windows.remove(active_window)
+
+        logger.debug(f"Active window: {active_window or 'No Active Window Found'}")
+        logger.debug(f"Windows: {windows}")
         
         #Preparing handles for Tree
-        other_apps_handles=list(controls_handles-apps_handles)
+        other_windows_handles=list(controls_handles-windows_handles)
 
-        tree_state=self.tree.get_state(active_app_handle,other_apps_handles,use_dom=use_dom)
+        tree_state=self.tree.get_state(active_window_handle,other_windows_handles,use_dom=use_dom)
 
         if use_vision:
             if use_annotation:
@@ -83,13 +91,20 @@ class Desktop:
         else:
             screenshot=None
             
-        self.desktop_state=DesktopState(apps= apps,active_app=active_app,screenshot=screenshot,tree_state=tree_state)
+        self.desktop_state=DesktopState(
+            active_window=active_window,
+            windows=windows,
+            active_desktop=active_desktop,
+            all_desktops=all_desktops,
+            screenshot=screenshot,
+            tree_state=tree_state
+        )
         # Log the time taken to capture the state
         end_time = time()
         logger.info(f"Desktop State capture took {end_time - start_time:.2f} seconds")
         return self.desktop_state
     
-    def get_app_status(self,control:uia.Control)->Status:
+    def get_window_status(self,control:uia.Control)->Status:
         if uia.IsIconic(control.NativeWindowHandle):
             return Status.MINIMIZED
         elif uia.IsZoomed(control.NativeWindowHandle):
@@ -147,11 +162,11 @@ class Desktop:
         except Exception as e:
             return (f'Command execution failed: {type(e).__name__}: {e}', 1)
         
-    def is_app_browser(self,node:uia.Control):
+    def is_window_browser(self,node:uia.Control):
         '''Give any node of the app and it will return True if the app is a browser, False otherwise.'''
         try:
             process=Process(node.ProcessId)
-            return process.name() in BROWSER_NAMES
+            return Browser.has_process(process.name())
         except:
             return False
     
@@ -162,32 +177,32 @@ class Desktop:
         return "".join([row.get('DisplayName') for row in reader])
     
     def resize_app(self,size:tuple[int,int]=None,loc:tuple[int,int]=None)->tuple[str,int]:
-        active_app=self.desktop_state.active_app
-        if active_app is None:
-            return "No active app found",1
-        if active_app.status==Status.MINIMIZED:
-            return f"{active_app.name} is minimized",1
-        elif active_app.status==Status.MAXIMIZED:
-            return f"{active_app.name} is maximized",1
+        active_window=self.desktop_state.active_window
+        if active_window is None:
+            return "No active window found",1
+        if active_window.status==Status.MINIMIZED:
+            return f"{active_window.name} is minimized",1
+        elif active_window.status==Status.MAXIMIZED:
+            return f"{active_window.name} is maximized",1
         else:
-            app_control=uia.ControlFromHandle(active_app.handle)
+            window_control=uia.ControlFromHandle(active_window.handle)
             if loc is None:
-                x=app_control.BoundingRectangle.left
-                y=app_control.BoundingRectangle.top
+                x=window_control.BoundingRectangle.left
+                y=window_control.BoundingRectangle.top
                 loc=(x,y)
             if size is None:
-                width=app_control.BoundingRectangle.width()
-                height=app_control.BoundingRectangle.height()
+                width=window_control.BoundingRectangle.width()
+                height=window_control.BoundingRectangle.height()
                 size=(width,height)
             x,y=loc
             width,height=size
-            app_control.MoveWindow(x,y,width,height)
-            return (f'{active_app.name} resized to {width}x{height} at {x},{y}.',0)
+            window_control.MoveWindow(x,y,width,height)
+            return (f'{active_window.name} resized to {width}x{height} at {x},{y}.',0)
     
     def is_app_running(self,name:str)->bool:
-        apps, _ = self.get_apps()
-        apps_dict = {app.name: app for app in apps}
-        return process.extractOne(name,list(apps_dict.keys()),score_cutoff=60) is not None
+        windows, _ = self.get_windows()
+        windows_dict = {window.name: window for window in windows}
+        return process.extractOne(name,list(windows_dict.keys()),score_cutoff=60) is not None
     
     def app(self,mode:Literal['launch','switch','resize'],name:Optional[str]=None,loc:Optional[tuple[int,int]]=None,size:Optional[tuple[int,int]]=None):
         match mode:
@@ -207,7 +222,7 @@ class Desktop:
                     safe_name = re.escape(name)
                     if uia.WindowControl(RegexName=f'(?i).*{safe_name}.*').Exists(maxSearchSeconds=10):
                         launched = True
-
+ 
                 if launched:
                     return f'{name.title()} launched.'
                 return f'Launching {name.title()} sent, but window not detected yet.'
@@ -249,20 +264,20 @@ class Desktop:
         return response, status, pid
     
     def switch_app(self,name:str):
-        apps={app.name:app for app in [self.desktop_state.active_app]+self.desktop_state.apps if app is not None}
-        matched_app:Optional[tuple[str,float]]=process.extractOne(name,list(apps.keys()),score_cutoff=70)
-        if matched_app is None:
+        windows={window.name:window for window in [self.desktop_state.active_window]+self.desktop_state.windows if window is not None}
+        matched_window:Optional[tuple[str,float]]=process.extractOne(name,list(windows.keys()),score_cutoff=70)
+        if matched_window is None:
             return (f'Application {name.title()} not found.',1)
-        app_name,_=matched_app
-        app=apps.get(app_name)
-        target_handle=app.handle
+        window_name,_=matched_window
+        window=windows.get(window_name)
+        target_handle=window.handle
 
         if uia.IsIconic(target_handle):
             uia.ShowWindow(target_handle, win32con.SW_RESTORE)
-            content=f'{app_name.title()} restored from Minimized state.'
+            content=f'{window_name.title()} restored from Minimized state.'
         else:
             self.bring_window_to_top(target_handle)
-            content=f'Switched to {app_name.title()} window.'
+            content=f'Switched to {window_name.title()} window.'
         return content,0
     
     def bring_window_to_top(self, target_handle: int):
@@ -322,7 +337,7 @@ class Desktop:
         x,y=loc
         pg.click(x,y,button=button,clicks=clicks,duration=0.1)
 
-    def type(self,loc:tuple[int,int],text:str,caret_position:Literal['start','end','none']='none',clear:Literal['true','false']='false',press_enter:Literal['true','false']='false'):
+    def type(self,loc:tuple[int,int],text:str,caret_position:Literal['start', 'idle', 'end']='idle',clear:bool=False,press_enter:bool=False):
         x,y=loc
         pg.leftClick(x,y)
         if caret_position == 'start':
@@ -331,12 +346,12 @@ class Desktop:
             pg.press('end')
         else:
             pass
-        if clear=='true':
+        if clear: # Handles both bool True and string 'true' if we want to be safe, but bool is better
             pg.sleep(0.5)
             pg.hotkey('ctrl','a')
             pg.press('backspace')
         pg.typewrite(text,interval=0.02)
-        if press_enter=='true':
+        if press_enter:
             pg.press('enter')
 
     def scroll(self,loc:tuple[int,int]=None,type:Literal['horizontal','vertical']='vertical',direction:Literal['up','down','left','right']='down',wheel_times:int=1)->str|None:
@@ -387,19 +402,19 @@ class Desktop:
         else:
             pg.press(''.join(shortcut))
 
-    def multi_select(self,press_ctrl:Literal['true','false']='false',elements:list[tuple[int,int]|int]=[]):
-        if press_ctrl=='true':
+    def multi_select(self,press_ctrl:bool=False,locs:list[tuple[int,int]]=[]):
+        if press_ctrl:
             pg.keyDown('ctrl')
-        for element in elements:
-            x,y=element
+        for loc in locs:
+            x,y=loc
             pg.click(x,y,duration=0.2)
             pg.sleep(0.5)
         pg.keyUp('ctrl')
     
-    def multi_edit(self,elements:list[tuple[int,int,str]|tuple[int,str]]):
-        for element in elements:
-            x,y,text=element
-            self.type((x,y),text=text,clear='true')
+    def multi_edit(self,locs:list[tuple[int,int,str]]):
+        for loc in locs:
+            x,y,text=loc
+            self.type((x,y),text=text,clear=True)
     
     def scrape(self,url:str)->str:
         response=requests.get(url,timeout=10)
@@ -407,56 +422,100 @@ class Desktop:
         content=markdownify(html=html)
         return content
     
-    def get_app_from_element(self,element:uia.Control)->App|None:
+    def get_window_from_element(self,element:uia.Control)->Window|None:
         if element is None:
             return None
         top_window=element.GetTopLevelControl()
         if top_window is None:
             return None
         handle=top_window.NativeWindowHandle
-        apps,_=self.get_apps()
-        for app in apps:
-            if app.handle==handle:
-                return app
+        windows,_=self.get_windows()
+        for window in windows:
+            if window.handle==handle:
+                return window
         return None
     
-    def is_app_visible(self,app:uia.Control)->bool:
-        is_minimized=self.get_app_status(app)!=Status.MINIMIZED
-        size=app.BoundingRectangle
+    def is_window_visible(self,window:uia.Control)->bool:
+        is_minimized=self.get_window_status(window)!=Status.MINIMIZED
+        size=window.BoundingRectangle
         area=size.width()*size.height()
-        is_overlay=self.is_overlay_app(app)
+        is_overlay=self.is_overlay_window(window)
         return not is_overlay and is_minimized and area>10
     
-    def is_overlay_app(self,element:uia.Control) -> bool:
+    def is_overlay_window(self,element:uia.Control) -> bool:
         no_children = len(element.GetChildren()) == 0
         is_name = "Overlay" in element.Name.strip()
         return no_children or is_name
 
-    def get_controls_handles(self):
+    def get_controls_handles(self,optimized:bool=False):
         handles = set()
-        root=uia.GetRootControl()
-        children=root.GetChildren()
-        for child in children:
-            handles.add(child.NativeWindowHandle)
+        # For even more faster results (still under development)
+        def callback(hwnd, _):
+            if win32gui.IsWindowVisible(hwnd) and is_window_on_current_desktop(hwnd):
+                handles.add(hwnd)
+
+        win32gui.EnumWindows(callback, None)
+
+        if desktop_hwnd:= win32gui.FindWindow('Progman',None):
+            handles.add(desktop_hwnd)
+        if taskbar_hwnd:= win32gui.FindWindow('Shell_TrayWnd',None):
+            handles.add(taskbar_hwnd)
+        if secondary_taskbar_hwnd:= win32gui.FindWindow('Shell_SecondaryTrayWnd',None):
+            handles.add(secondary_taskbar_hwnd)
         return handles
 
-    def get_active_app(self,apps:list[App]|None=None)->App|None:
+    def get_active_window(self,windows:list[Window]|None=None)->Window|None:
         try:
-            if apps is None:
-                apps,_=self.get_apps()
-            handle=uia.GetForegroundWindow()
-            for app in apps:
-                if app.handle!=handle:
+            if windows is None:
+                windows,_=self.get_windows()
+            active_window=self.get_foreground_window()
+            if active_window.ClassName=="Progman":
+                return None
+            active_window_handle=active_window.NativeWindowHandle
+            for window in windows:
+                if window.handle!=active_window_handle:
                     continue
-                return app
+                return window
+            # In case active window is not present in the windows list
+            return Window(**{
+                "name":active_window.Name,
+                "is_browser":self.is_window_browser(active_window),
+                "depth":0,
+                "bounding_box":BoundingBox(
+                    left=active_window.BoundingRectangle.left,
+                    top=active_window.BoundingRectangle.top,
+                    right=active_window.BoundingRectangle.right,
+                    bottom=active_window.BoundingRectangle.bottom,
+                    width=active_window.BoundingRectangle.width(),
+                    height=active_window.BoundingRectangle.height()
+                ),
+                "status":self.get_window_status(active_window),
+                "handle":active_window_handle,
+                "process_id":active_window.ProcessId,
+            })
         except Exception as ex:
-            logger.error(f"Error in get_active_app: {ex}")
+            logger.error(f"Error in get_active_window: {ex}")
         return None
+
+    def get_foreground_window(self)->uia.Control:
+        handle=uia.GetForegroundWindow()
+        active_window=self.get_window_from_element_handle(handle)
+        return active_window
+
+    def get_window_from_element_handle(self, element_handle: int) -> uia.Control:
+        current = uia.ControlFromHandle(element_handle)
+        root_handle = uia.GetRootControl().NativeWindowHandle
         
-    def get_apps(self,controls_handles:set[int]|None=None) -> tuple[list[App],set[int]]:
+        while True:
+            parent = current.GetParentControl()
+            if parent is None or parent.NativeWindowHandle == root_handle:
+                return current
+            current = parent
+        
+    def get_windows(self,controls_handles:set[int]|None=None) -> tuple[list[Window],set[int]]:
         try:
-            apps = []
-            handles = set()
+            windows = []
+            window_handles = set()
             controls_handles=controls_handles or self.get_controls_handles()
             for depth, hwnd in enumerate(controls_handles):
                 try:
@@ -465,7 +524,7 @@ class Desktop:
                     continue
                 
                 # Filter out Overlays (e.g. NVIDIA, Steam)
-                if self.is_overlay_app(child):
+                if self.is_overlay_window(child):
                     continue
 
                 if isinstance(child,(uia.WindowControl,uia.PaneControl)):
@@ -474,15 +533,14 @@ class Desktop:
                         continue
                         
                     if window_pattern.CanMinimize and window_pattern.CanMaximize:
-                        status = self.get_app_status(child)
+                        status = self.get_window_status(child)
                         
                         bounding_rect=child.BoundingRectangle
                         if bounding_rect.isempty() and status!=Status.MINIMIZED:
                             continue
 
-                        apps.append(App(**{
+                        windows.append(Window(**{
                             "name":child.Name,
-                            "runtime_id":tuple(child.GetRuntimeId()),
                             "depth":depth,
                             "status":status,
                             "bounding_box":BoundingBox(
@@ -495,13 +553,13 @@ class Desktop:
                             ),
                             "handle":child.NativeWindowHandle,
                             "process_id":child.ProcessId,
-                            "is_browser":self.is_app_browser(child)
+                            "is_browser":self.is_window_browser(child)
                         }))
-                        handles.add(child.NativeWindowHandle)
+                        window_handles.add(child.NativeWindowHandle)
         except Exception as ex:
-            logger.error(f"Error in get_apps: {ex}")
-            apps = []
-        return apps,handles
+            logger.error(f"Error in get_windows: {ex}")
+            windows = []
+        return windows,window_handles
     
     def get_xpath_from_element(self,element:uia.Control):
         current=element
@@ -568,7 +626,7 @@ class Desktop:
         try:
             return ImageGrab.grab(all_screens=True)
         except Exception as e:
-            logger.warning(f"Failed to capture all screens: {e}. Fallback to primary.")
+            logger.warning(f"Failed to capture virtual screen, using primary screen")
             return pg.screenshot()
 
     def get_annotated_screenshot(self, nodes: list[TreeElementNode]) -> Image.Image:

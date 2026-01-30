@@ -31,26 +31,26 @@ class Tree:
         self.tree_state=None
 
 
-    def get_state(self,active_app_handle:int|None,other_apps_handles:list[int],use_dom:bool=False)->TreeState:
+    def get_state(self,active_window_handle:int|None,other_windows_handles:list[int],use_dom:bool=False)->TreeState:
         # Reset DOM state to prevent leaks and stale data
         self.dom = None
         self.dom_bounding_box = None
         start_time = time()
 
-        active_app_flag=False
-        if active_app_handle:
-            active_app_flag=True
-            apps_handles=[active_app_handle]+other_apps_handles
+        active_window_flag=False
+        if active_window_handle:
+            active_window_flag=True
+            windows_handles=[active_window_handle]+other_windows_handles
         else:
-            apps_handles=other_apps_handles
+            windows_handles=other_windows_handles
         
-        interactive_nodes,scrollable_nodes,dom_informative_nodes=self.get_appwise_nodes(apps_handles=apps_handles,active_app_flag=active_app_flag,use_dom=use_dom)
+        interactive_nodes,scrollable_nodes,dom_informative_nodes=self.get_windowwise_nodes(windows_handles=windows_handles,active_window_flag=active_window_flag,use_dom=use_dom)
         root_node=TreeElementNode(
             name="Desktop",
             control_type="PaneControl",
             bounding_box=self.screen_box,
             center=self.screen_box.get_center(),
-            app_name="Desktop",
+            window_name="Desktop",
             xpath='',
             value='',
             shortcut='',
@@ -68,7 +68,7 @@ class Tree:
                 vertical_scrollable=scroll_pattern.VerticallyScrollable if scroll_pattern else False,
                 vertical_scroll_percent=scroll_pattern.VerticalScrollPercent if scroll_pattern and scroll_pattern.VerticallyScrollable else 0,
                 xpath='',
-                app_name="DOM",
+                window_name="DOM",
                 is_focused=False
             )
         else:
@@ -78,26 +78,26 @@ class Tree:
         logger.info(f"Tree State capture took {end_time - start_time:.2f} seconds")
         return self.tree_state
 
-    def get_appwise_nodes(self,apps_handles:list[int],active_app_flag:bool,use_dom:bool=False) -> tuple[list[TreeElementNode],list[ScrollElementNode],list[TextElementNode]]:
+    def get_windowwise_nodes(self,windows_handles:list[int],active_window_flag:bool,use_dom:bool=False) -> tuple[list[TreeElementNode],list[ScrollElementNode],list[TextElementNode]]:
         interactive_nodes, scrollable_nodes, dom_informative_nodes = [], [], []
         
         # Pre-calculate browser status in main thread to pass simple types to workers
         task_inputs = []
-        for handle in apps_handles:
+        for handle in windows_handles:
             is_browser = False
             try:
                 # Use temporary control for property check in main thread
                 # This is safe as we don't pass this specific COM object to the thread
                 temp_node = ControlFromHandle(handle)
-                if active_app_flag and temp_node.ClassName=='Progman':
+                if active_window_flag and temp_node.ClassName=='Progman':
                     continue
-                is_browser = self.desktop.is_app_browser(temp_node)
+                is_browser = self.desktop.is_window_browser(temp_node)
             except Exception:
                 pass
             task_inputs.append((handle, is_browser))
 
         with ThreadPoolExecutor() as executor:
-            retry_counts = {handle: 0 for handle in apps_handles}
+            retry_counts = {handle: 0 for handle in windows_handles}
             future_to_handle = {
                 executor.submit(self.get_nodes, handle, is_browser, use_dom): handle
                 for handle, is_browser in task_inputs
@@ -168,7 +168,7 @@ class Tree:
                 return False
             return first_child.LocalizedControlType==child_control_type
 
-    def _dom_correction(self, node:Control, dom_interactive_nodes:list[TreeElementNode], app_name:str):
+    def _dom_correction(self, node:Control, dom_interactive_nodes:list[TreeElementNode], window_name:str):
         if self.element_has_child_element(node,'list item','link') or self.element_has_child_element(node,'item','link'):
             dom_interactive_nodes.pop()
             return None
@@ -207,7 +207,7 @@ class Tree:
                     'bounding_box':bounding_box,
                     'xpath':'',
                     'center':center,
-                    'app_name':app_name,
+                    'window_name':window_name,
                     'is_focused':is_focused
                 }))
         elif self.element_has_child_element(node,'link','heading'):
@@ -228,11 +228,11 @@ class Tree:
                 'bounding_box':bounding_box,
                 'xpath':'',
                 'center':center,
-                'app_name':app_name,
+                'window_name':window_name,
                 'is_focused':is_focused
             }))
 
-    def tree_traversal(self, node: Control, window_bounding_box:Rect, app_name:str, is_browser:bool, 
+    def tree_traversal(self, node: Control, window_bounding_box:Rect, window_name:str, is_browser:bool, 
                     interactive_nodes:Optional[list[TreeElementNode]]=None, scrollable_nodes:Optional[list[ScrollElementNode]]=None, 
                     dom_interactive_nodes:Optional[list[TreeElementNode]]=None, dom_informative_nodes:Optional[list[TextElementNode]]=None,
                     is_dom:bool=False, is_dialog:bool=False,
@@ -277,7 +277,7 @@ class Tree:
                                 'horizontal_scroll_percent':scroll_pattern.HorizontalScrollPercent if scroll_pattern.HorizontallyScrollable else 0,
                                 'vertical_scrollable':scroll_pattern.VerticallyScrollable,
                                 'vertical_scroll_percent':scroll_pattern.VerticalScrollPercent if scroll_pattern.VerticallyScrollable else 0,
-                                'app_name':app_name,
+                                'window_name':window_name,
                                 'is_focused':has_keyboard_focus
                             }))
                     except Exception:
@@ -365,11 +365,11 @@ class Tree:
                                     'bounding_box':bounding_box,
                                     'center':center,
                                     'xpath':'',
-                                    'app_name':app_name,
+                                    'window_name':window_name,
                                     'is_focused':is_focused
                                 })
                                 dom_interactive_nodes.append(tree_node)
-                                self._dom_correction(node, dom_interactive_nodes, app_name)
+                                self._dom_correction(node, dom_interactive_nodes, window_name)
                             else:
                                 bounding_box=self.iou_bounding_box(window_bounding_box,element_bounding_box)
                                 center = bounding_box.get_center()
@@ -381,7 +381,7 @@ class Tree:
                                     'bounding_box':bounding_box,
                                     'center':center,
                                     'xpath':'',
-                                    'app_name':app_name,
+                                    'window_name':window_name,
                                     'is_focused':is_focused
                                 })
                                 interactive_nodes.append(tree_node)
@@ -432,7 +432,7 @@ class Tree:
                     height=bounding_box.height())
                     self.dom=child
                     # enter DOM subtree
-                    self.tree_traversal(child, window_bounding_box, app_name, is_browser, interactive_nodes, scrollable_nodes, dom_interactive_nodes, dom_informative_nodes, is_dom=True, is_dialog=is_dialog, element_cache_req=element_cache_req, children_cache_req=children_cache_req)
+                    self.tree_traversal(child, window_bounding_box, window_name, is_browser, interactive_nodes, scrollable_nodes, dom_interactive_nodes, dom_informative_nodes, is_dom=True, is_dialog=is_dialog, element_cache_req=element_cache_req, children_cache_req=children_cache_req)
                 # Check if the child is a dialog
                 elif isinstance(child,WindowControl):
                     if not child.CachedIsOffscreen:
@@ -454,10 +454,10 @@ class Tree:
                                 # Because this window element is modal
                                 interactive_nodes.clear()
                     # enter dialog subtree
-                    self.tree_traversal(child, window_bounding_box, app_name, is_browser, interactive_nodes, scrollable_nodes, dom_interactive_nodes, dom_informative_nodes, is_dom=is_dom, is_dialog=True, element_cache_req=element_cache_req, children_cache_req=children_cache_req)
+                    self.tree_traversal(child, window_bounding_box, window_name, is_browser, interactive_nodes, scrollable_nodes, dom_interactive_nodes, dom_informative_nodes, is_dom=is_dom, is_dialog=True, element_cache_req=element_cache_req, children_cache_req=children_cache_req)
                 else:
                     # normal non-dialog children
-                    self.tree_traversal(child, window_bounding_box, app_name, is_browser, interactive_nodes, scrollable_nodes, dom_interactive_nodes, dom_informative_nodes, is_dom=is_dom, is_dialog=is_dialog, element_cache_req=element_cache_req, children_cache_req=children_cache_req)
+                    self.tree_traversal(child, window_bounding_box, window_name, is_browser, interactive_nodes, scrollable_nodes, dom_interactive_nodes, dom_informative_nodes, is_dom=is_dom, is_dialog=is_dialog, element_cache_req=element_cache_req, children_cache_req=children_cache_req)
         except Exception as e:
             logger.error(f"Error in tree_traversal: {e}", exc_info=True)
             raise
@@ -491,11 +491,11 @@ class Tree:
             window_bounding_box=node.BoundingRectangle
             
             interactive_nodes, dom_interactive_nodes, dom_informative_nodes, scrollable_nodes = [], [], [], []
-            app_name=node.Name.strip()
-            app_name=self.app_name_correction(app_name)
+            window_name=node.Name.strip()
+            window_name=self.app_name_correction(window_name)
 
-            self.tree_traversal(node, window_bounding_box, app_name, is_browser, interactive_nodes, scrollable_nodes, dom_interactive_nodes, dom_informative_nodes, is_dom=False, is_dialog=False, element_cache_req=element_cache_req, children_cache_req=children_cache_req)
-            logger.debug(f'App name:{app_name}')
+            self.tree_traversal(node, window_bounding_box, window_name, is_browser, interactive_nodes, scrollable_nodes, dom_interactive_nodes, dom_informative_nodes, is_dom=False, is_dialog=False, element_cache_req=element_cache_req, children_cache_req=children_cache_req)
+            logger.debug(f'Window name:{window_name}')
             logger.debug(f'Interactive nodes:{len(interactive_nodes)}')
             if is_browser:
                 logger.debug(f'DOM interactive nodes:{len(dom_interactive_nodes)}')

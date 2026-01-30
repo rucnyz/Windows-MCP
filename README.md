@@ -63,7 +63,7 @@ mcp-name: io.github.CursorTouch/Windows-MCP
   Easily adapt or extend tools to suit your unique automation or AI integration needs.
 
 - **Real-Time Interaction**  
-  Typical latency between actions (e.g., from one mouse click to the next) ranges from **0.4 to 1.2 secs**, and may slightly vary based on the number of active applications and system load, also the inferencing speed of the llm.
+  Typical latency between actions (e.g., from one mouse click to the next) ranges from **0.2 to 0.9 secs**, and may slightly vary based on the number of active applications and system load, also the inferencing speed of the llm.
 
 - **DOM Mode for Browser Automation**  
   Special `use_dom=True` mode for State-Tool that focuses exclusively on web page content, filtering out browser UI elements for cleaner, more efficient web automation.
