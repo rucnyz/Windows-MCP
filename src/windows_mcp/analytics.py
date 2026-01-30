@@ -90,8 +90,6 @@ class PostHogAnalytics:
         # Using print for immediate visibility in console during debugging
         print(f"[Analytics] {tool_name}: {success_mark} ({duration}ms)")
         logger.info(f"{tool_name}: {success_mark} ({duration}ms)")
-        if self.client:
-            self.client.flush()
 
     async def track_error(self, error: Exception, context: Dict[str, Any]) -> None:
         if self.client:
@@ -106,9 +104,6 @@ class PostHogAnalytics:
                      **context
                  }
             )
-        
-        if self.client:
-            self.client.flush()
         
         logger.error(f"ERROR in {context.get('tool_name')}: {error}")
 
