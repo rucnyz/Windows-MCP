@@ -97,7 +97,10 @@ def powershell_tool(command: str,timeout:int=10, ctx: Context = None) -> str:
     )
     )
 @with_analytics(analytics, "State-Tool")
-def state_tool(use_vision:bool=False,use_dom:bool=False, ctx: Context = None):
+def state_tool(use_vision:bool|str=False,use_dom:bool|str=False, ctx: Context = None):
+    use_vision = use_vision is True or (isinstance(use_vision, str) and use_vision.lower() == 'true')
+    use_dom = use_dom is True or (isinstance(use_dom, str) and use_dom.lower() == 'true')
+    
     # Calculate scale factor to cap resolution at 1080p (1920x1080)
     scale_width = MAX_IMAGE_WIDTH / screen_size.width if screen_size.width > MAX_IMAGE_WIDTH else 1.0
     scale_height = MAX_IMAGE_HEIGHT / screen_size.height if screen_size.height > MAX_IMAGE_HEIGHT else 1.0
@@ -201,7 +204,8 @@ def scroll_tool(loc:list[int]=None,type:Literal['horizontal','vertical']='vertic
     )
     )
 @with_analytics(analytics, "Move-Tool")
-def move_tool(loc:list[int], drag:bool=False, ctx: Context = None)->str:
+def move_tool(loc:list[int], drag:bool|str=False, ctx: Context = None)->str:
+    drag = drag is True or (isinstance(drag, str) and drag.lower() == 'true')
     if len(loc) != 2:
         raise ValueError("loc must be a list of exactly 2 integers [x, y]")
     x,y=loc[0],loc[1]
@@ -256,7 +260,8 @@ def wait_tool(duration:int, ctx: Context = None)->str:
     )
     )
 @with_analytics(analytics, "Scrape-Tool")
-def scrape_tool(url:str,use_dom:bool=False, ctx: Context = None)->str:
+def scrape_tool(url:str,use_dom:bool|str=False, ctx: Context = None)->str:
+    use_dom = use_dom is True or (isinstance(use_dom, str) and use_dom.lower() == 'true')
     if not use_dom:
         content=desktop.scrape(url)
         return f'URL:{url}\nContent:\n{content}'
@@ -284,7 +289,8 @@ def scrape_tool(url:str,use_dom:bool=False, ctx: Context = None)->str:
     )
 )
 @with_analytics(analytics, "Multi-Select-Tool")
-def multi_select_tool(locs:list[list[int]], press_ctrl:bool=True, ctx: Context = None)->str:
+def multi_select_tool(locs:list[list[int]], press_ctrl:bool|str=True, ctx: Context = None)->str:
+    press_ctrl = press_ctrl is True or (isinstance(press_ctrl, str) and press_ctrl.lower() == 'true')
     desktop.multi_select(press_ctrl,locs)
     elements_str = '\n'.join([f"({loc[0]},{loc[1]})" for loc in locs])
     return f"Multi-selected elements at:\n{elements_str}"

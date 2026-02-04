@@ -46,7 +46,12 @@ class Desktop:
         self.tree=Tree(self)
         self.desktop_state=None
         
-    def get_state(self,use_annotation:bool=True,use_vision:bool=False,use_dom:bool=False,as_bytes:bool=False,scale:float=1.0)->DesktopState:
+    def get_state(self,use_annotation:bool|str=True,use_vision:bool|str=False,use_dom:bool|str=False,as_bytes:bool|str=False,scale:float=1.0)->DesktopState:
+        use_annotation = use_annotation is True or (isinstance(use_annotation, str) and use_annotation.lower() == 'true')
+        use_vision = use_vision is True or (isinstance(use_vision, str) and use_vision.lower() == 'true')
+        use_dom = use_dom is True or (isinstance(use_dom, str) and use_dom.lower() == 'true')
+        as_bytes = as_bytes is True or (isinstance(as_bytes, str) and as_bytes.lower() == 'true')
+        
         start_time = time()
 
         controls_handles=self.get_controls_handles() # Taskbar,Program Manager,Apps, Dialogs
@@ -418,7 +423,8 @@ class Desktop:
         else:
             pg.press(''.join(shortcut))
 
-    def multi_select(self,press_ctrl:bool=False,locs:list[tuple[int,int]]=[]):
+    def multi_select(self,press_ctrl:bool|str=False,locs:list[tuple[int,int]]=[]):
+        press_ctrl = press_ctrl is True or (isinstance(press_ctrl, str) and press_ctrl.lower() == 'true')
         if press_ctrl:
             pg.keyDown('ctrl')
         for loc in locs:

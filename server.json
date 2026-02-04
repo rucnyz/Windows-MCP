@@ -12,8 +12,8 @@
     {
       "registry_type": "pypi",
       "registry_base_url": "https://pypi.org",
-      "identifier": "windows_mcp",
-      "version": "0.5.4",
+      "identifier": "windows-mcp",
+      "version": "0.6.2",
       "runtime_hint": "uvx",
       "transport": {
         "type": "stdio"
