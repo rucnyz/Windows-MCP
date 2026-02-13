@@ -50,7 +50,7 @@ The codebase follows a layered service architecture under `src/windows_mcp/`:
 - Screenshots are capped to 1920x1080 for token efficiency
 - `pyautogui.FAILSAFE` is disabled; `PAUSE` is set to 1.0s between actions
 - Browser detection (Chrome, Edge, Firefox) triggers special DOM extraction mode in Snapshot
-- Fuzzy string matching (`fuzzywuzzy`/`thefuzz`) is used for element name matching
+- Fuzzy string matching (`thefuzz`) is used for element name matching
 - UI element fetching has retry logic (`THREAD_MAX_RETRIES=3` in tree service)
 - The server supports stdio, SSE, and streamable HTTP transports
 
