@@ -289,6 +289,15 @@ class Desktop:
         apps_map = self.get_apps_from_start_menu()
         matched_app = process.extractOne(name, apps_map.keys(), score_cutoff=70)
         if matched_app is None:
+            suggestions = process.extract(name, list(apps_map.keys()), limit=5)
+            if suggestions:
+                suggestion_names = [s[0] for s in suggestions]
+                hint = ", ".join(suggestion_names)
+                return (
+                    f"{name.title()} not found in start menu. Did you mean one of: {hint}?",
+                    1,
+                    0,
+                )
             return (f"{name.title()} not found in start menu.", 1, 0)
         app_name, _ = matched_app
         appid = apps_map.get(app_name)
@@ -844,8 +853,8 @@ class Desktop:
         from xml.sax.saxutils import escape as xml_escape
 
         # Sanitize for XML context (escape <, >, &, ", ')
-        safe_title = xml_escape(title, {'"': '&quot;', "'": '&apos;'})
-        safe_message = xml_escape(message, {'"': '&quot;', "'": '&apos;'})
+        safe_title = xml_escape(title, {'"': "&quot;", "'": "&apos;"})
+        safe_message = xml_escape(message, {'"': "&quot;", "'": "&apos;"})
 
         # Escape for PowerShell single-quoted strings (only single quotes need doubling)
         safe_title_ps = safe_title.replace("'", "''")
@@ -878,7 +887,7 @@ class Desktop:
         if status == 0:
             return f'Notification sent: "{title}" - {message}'
         else:
-            return f'Notification may have been sent. PowerShell output: {response[:200]}'
+            return f"Notification may have been sent. PowerShell output: {response[:200]}"
 
     def list_processes(
         self,
