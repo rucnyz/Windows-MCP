@@ -113,13 +113,11 @@ class ScrapeToolRequest(BaseModel):
 
 class ReadFileRequest(BaseModel):
     path: str
-    encoding: str = "utf-8"
 
 
 class EditFileRequest(BaseModel):
     path: str
     content: str
-    encoding: str = "utf-8"
     mode: Literal["overwrite", "append"] = "overwrite"
 
 
@@ -411,7 +409,7 @@ async def read_file_tool(request: ReadFileRequest):
     try:
         path = request.path.replace("'", "''")
         response, status_code = desktop.execute_command(
-            f"Get-Content -Path '{path}' -Raw -Encoding {request.encoding}",
+            f"Get-Content -Path '{path}' -Raw",
             timeout=10,
         )
         if status_code != 0:
@@ -430,13 +428,13 @@ async def edit_file_tool(request: EditFileRequest):
             ps_cmd = (
                 f"$bytes = [Convert]::FromBase64String('{content_b64}'); "
                 f"$text = [System.Text.Encoding]::UTF8.GetString($bytes); "
-                f"Add-Content -Path '{path}' -Value $text -Encoding {request.encoding}"
+                f"Add-Content -Path '{path}' -Value $text -Encoding UTF8"
             )
         else:
             ps_cmd = (
                 f"$bytes = [Convert]::FromBase64String('{content_b64}'); "
                 f"$text = [System.Text.Encoding]::UTF8.GetString($bytes); "
-                f"Set-Content -Path '{path}' -Value $text -Encoding {request.encoding}"
+                f"Set-Content -Path '{path}' -Value $text -Encoding UTF8"
             )
         response, status_code = desktop.execute_command(ps_cmd, timeout=10)
         if status_code != 0:
