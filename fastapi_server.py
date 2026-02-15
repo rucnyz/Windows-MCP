@@ -164,7 +164,9 @@ async def powershell_tool(request: PowershellToolRequest):
 @app.post("/tools/state", response_model=ToolResponse)
 async def state_tool(request: StateToolRequest):
     try:
-        desktop_state = desktop.get_state(use_vision=request.use_vision)
+        desktop_state = desktop.get_state(
+            use_vision=request.use_vision, as_bytes=request.use_vision
+        )
         interactive_elements = desktop_state.tree_state.interactive_elements_to_string()
         scrollable_elements = desktop_state.tree_state.scrollable_elements_to_string()
         windows = desktop_state.windows_to_string()
