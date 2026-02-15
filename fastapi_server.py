@@ -16,6 +16,9 @@ import base64
 import uvicorn
 import sys
 import os
+import truststore
+
+truststore.inject_into_ssl()  # Use Windows system CA certificates for HTTPS
 
 # Add src to path so we can import windows_mcp
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
