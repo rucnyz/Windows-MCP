@@ -99,9 +99,11 @@ class Desktop:
         )
 
         if use_vision:
-            if use_annotation:
-                nodes = tree_state.interactive_nodes
-                screenshot = self.get_annotated_screenshot(nodes=nodes)
+            if use_annotation and tree_state.marks:
+                screenshot = self.get_annotated_screenshot(
+                    filtered_nodes=tree_state.filtered_nodes,
+                    marks=tree_state.marks,
+                )
             else:
                 screenshot = self.get_screenshot()
 
@@ -782,73 +784,138 @@ class Desktop:
         width, height = uia.GetVirtualScreenSize()
         return Size(width=width, height=height)
 
-    def get_screenshot(self) -> Image.Image:
+    def get_screenshot(self, with_cursor: bool = True) -> Image.Image:
+        """Capture screenshot with optional cursor composite (OSWorld-compatible).
+
+        Port of OSWorld desktop_env/server/main.py /screenshot endpoint.
+        Uses win32gui/win32ui to render the cursor and composite it onto the screenshot.
+        DPI scaling is handled via GetScaleFactorForDevice.
+        """
         try:
-            return ImageGrab.grab(all_screens=True)
+            img = ImageGrab.grab(bbox=None, include_layered_windows=True)
         except Exception:
-            logger.warning("Failed to capture virtual screen, using primary screen")
-            return pg.screenshot()
+            logger.warning("Failed to capture with include_layered_windows, falling back")
+            img = pg.screenshot()
 
-    def get_annotated_screenshot(self, nodes: list[TreeElementNode]) -> Image.Image:
-        screenshot = self.get_screenshot()
-        # Add padding
-        padding = 5
-        width = int(screenshot.width + (1.5 * padding))
-        height = int(screenshot.height + (1.5 * padding))
-        padded_screenshot = Image.new("RGB", (width, height), color=(255, 255, 255))
-        padded_screenshot.paste(screenshot, (padding, padding))
+        if not with_cursor:
+            return img
 
-        draw = ImageDraw.Draw(padded_screenshot)
-        font_size = 12
+        # Cursor composite (port of OSWorld)
         try:
-            font = ImageFont.truetype("arial.ttf", font_size)
+            import win32ui
+
+            ratio = ctypes.windll.shcore.GetScaleFactorForDevice(0) / 100
+
+            hcursor = win32gui.GetCursorInfo()[1]
+            hdc = win32ui.CreateDCFromHandle(win32gui.GetDC(0))
+            hbmp = win32ui.CreateBitmap()
+            hbmp.CreateCompatibleBitmap(hdc, 36, 36)
+            hdc = hdc.CreateCompatibleDC()
+            hdc.SelectObject(hbmp)
+            hdc.DrawIcon((0, 0), hcursor)
+
+            bmpinfo = hbmp.GetInfo()
+            bmpstr = hbmp.GetBitmapBits(True)
+            cursor = Image.frombuffer(
+                "RGB",
+                (bmpinfo["bmWidth"], bmpinfo["bmHeight"]),
+                bmpstr,
+                "raw",
+                "BGRX",
+                0,
+                1,
+            ).convert("RGBA")
+
+            win32gui.DestroyIcon(hcursor)
+            win32gui.DeleteObject(hbmp.GetHandle())
+            hdc.DeleteDC()
+
+            # Make black pixels transparent
+            pixdata = cursor.load()
+            width, height = cursor.size
+            for y in range(height):
+                for x in range(width):
+                    if pixdata[x, y] == (0, 0, 0, 255):
+                        pixdata[x, y] = (0, 0, 0, 0)
+
+            hotspot = win32gui.GetIconInfo(hcursor)[1:3]
+            pos_win = win32gui.GetCursorPos()
+            pos = (
+                round(pos_win[0] * ratio - hotspot[0]),
+                round(pos_win[1] * ratio - hotspot[1]),
+            )
+            img.paste(cursor, pos, cursor)
+        except Exception as e:
+            logger.warning(f"Failed to composite cursor: {e}")
+
+        return img
+
+    def get_annotated_screenshot(
+        self,
+        nodes: list = None,
+        filtered_nodes: list = None,
+        marks: list = None,
+    ) -> Image.Image:
+        """Draw SoM bounding boxes on screenshot (OSWorld-compatible style).
+
+        Port of OSWorld mm_agents/accessibility_tree_wrap/heuristic_retrieve.py
+        draw_bounding_boxes().
+
+        OSWorld style:
+        - Red outline (width=1)
+        - Index number at bottom-left of bounding box
+        - Black background, white text, anchor="lb"
+        - Skip single-color regions
+
+        Args:
+            nodes: Legacy param (ignored in OSWorld compat mode).
+            filtered_nodes: lxml Element nodes from tree filter.
+            marks: List of [x, y, w, h] bounding boxes.
+        """
+        screenshot = self.get_screenshot()
+
+        if not marks:
+            return screenshot
+
+        draw = ImageDraw.Draw(screenshot)
+        try:
+            font = ImageFont.truetype("arial.ttf", 15)
         except IOError:
             font = ImageFont.load_default()
 
-        def get_random_color():
-            return "#{:06x}".format(random.randint(0, 0xFFFFFF))
+        cp_ns = "https://accessibility.windows.example.org/ns/component"
+        val_ns = "https://accessibility.windows.example.org/ns/value"
+        class_ns = "https://accessibility.windows.example.org/ns/class"
 
-        left_offset, top_offset, _, _ = uia.GetVirtualScreenRect()
+        index = 1
+        for i, mark in enumerate(marks):
+            x, y, w, h = mark
+            if w <= 0 or h <= 0:
+                continue
 
-        def draw_annotation(label, node: TreeElementNode):
-            box = node.bounding_box
-            color = get_random_color()
+            coords = (x, y)
+            bottom_right = (x + w, y + h)
 
-            # Scale and pad the bounding box also clip the bounding box
-            # Adjust for virtual screen offset so coordinates map to the screenshot image
-            adjusted_box = (
-                int(box.left - left_offset) + padding,
-                int(box.top - top_offset) + padding,
-                int(box.right - left_offset) + padding,
-                int(box.bottom - top_offset) + padding,
-            )
-            # Draw bounding box
-            draw.rectangle(adjusted_box, outline=color, width=2)
+            # Skip single-color regions (OSWorld logic)
+            try:
+                cropped = screenshot.crop((*coords, *bottom_right))
+                if len(set(list(cropped.getdata()))) == 1:
+                    continue
+            except Exception:
+                pass
 
-            # Label dimensions
-            label_width = draw.textlength(str(label), font=font)
-            label_height = font_size
-            left, top, right, bottom = adjusted_box
+            # Draw red rectangle (OSWorld style)
+            draw.rectangle([coords, bottom_right], outline="red", width=1)
 
-            # Label position above bounding box
-            label_x1 = right - label_width
-            label_y1 = top - label_height - 4
-            label_x2 = label_x1 + label_width
-            label_y2 = label_y1 + label_height + 4
+            # Draw index at bottom-left with black background (OSWorld style)
+            text_position = (coords[0], bottom_right[1])
+            text_bbox = draw.textbbox(text_position, str(index), font=font, anchor="lb")
+            draw.rectangle(text_bbox, fill="black")
+            draw.text(text_position, str(index), font=font, anchor="lb", fill="white")
 
-            # Draw label background and text
-            draw.rectangle([(label_x1, label_y1), (label_x2, label_y2)], fill=color)
-            draw.text(
-                (label_x1 + 2, label_y1 + 2),
-                str(label),
-                fill=(255, 255, 255),
-                font=font,
-            )
+            index += 1
 
-        # Draw annotations in parallel
-        with ThreadPoolExecutor() as executor:
-            executor.map(draw_annotation, range(len(nodes)), nodes)
-        return padded_screenshot
+        return screenshot
 
     def send_notification(self, title: str, message: str) -> str:
         from xml.sax.saxutils import escape as xml_escape

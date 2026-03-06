@@ -1,44 +1,49 @@
+"""Data models for the accessibility tree state.
+
+After the OSWorld compatibility rewrite, TreeState holds:
+- xml_tree: raw XML accessibility tree string
+- tsv_tree: filtered + linearized TSV (what the model sees)
+- filtered_nodes: lxml Element nodes that passed the filter (for SoM drawing)
+- marks: bounding boxes [x, y, w, h] for each filtered node (for SoM drawing)
+
+BoundingBox and Center are kept for desktop/service.py compatibility.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass
 class TreeState:
-    root_node: "TreeElementNode" | None = None
-    dom_node: "ScrollElementNode" | None = None
-    interactive_nodes: list["TreeElementNode"] = field(default_factory=list)
-    scrollable_nodes: list["ScrollElementNode"] = field(default_factory=list)
-    dom_informative_nodes: list["TextElementNode"] = field(default_factory=list)
+    """Accessibility tree state, OSWorld-compatible."""
+
+    # ── Primary data (OSWorld-compatible) ─────────────────────
+    xml_tree: str = ""  # Raw XML a11y tree
+    tsv_tree: str = ""  # Filtered + linearized TSV (model observation)
+    filtered_nodes: list = field(default_factory=list)  # lxml Elements that passed filter
+    marks: list = field(default_factory=list)  # [[x, y, w, h], ...] for SoM
+
+    # ── DOM scraping compat (for Scrape tool use_dom mode) ────
+    dom_node: Optional[Any] = None
+    dom_informative_nodes: list = field(default_factory=list)
+
+    # ── Backward-compat methods (used by fastapi_server.py + __main__.py) ──
 
     def interactive_elements_to_string(self) -> str:
-        if not self.interactive_nodes:
-            return "No interactive elements"
-        # TOON-like format: Pipe-separated values with clear header
-        # Using abbreviations in header to save tokens
-        header = "# id|window|control_type|name|coords|focus"
-        rows = [header]
-        for idx, node in enumerate(self.interactive_nodes):
-            row = f"{idx}|{node.window_name}|{node.control_type}|{node.name}|{node.center.to_string()}|{node.is_focused}"
-            rows.append(row)
-        return "\n".join(rows)
+        """Returns the TSV tree (replaces old pipe-delimited interactive elements)."""
+        return self.tsv_tree or "No interactive elements"
 
     def scrollable_elements_to_string(self) -> str:
-        if not self.scrollable_nodes:
-            return "No scrollable elements"
-        # TOON-like format
-        header = "# id|window|control_type|name|coords|h_scroll|h_pct|v_scroll|v_pct|focus"
-        rows = [header]
-        base_index = len(self.interactive_nodes)
-        for idx, node in enumerate(self.scrollable_nodes):
-            row = (
-                f"{base_index + idx}|{node.window_name}|{node.control_type}|{node.name}|"
-                f"{node.center.to_string()}|{node.horizontal_scrollable}|{node.horizontal_scroll_percent}|"
-                f"{node.vertical_scrollable}|{node.vertical_scroll_percent}|{node.is_focused}"
-            )
-            rows.append(row)
-        return "\n".join(rows)
+        """Scrollable elements are now included in the TSV tree."""
+        return ""
+
+    @property
+    def interactive_nodes(self) -> list:
+        """Backward compat for SoM — returns empty list.
+        Use filtered_nodes + marks for OSWorld-style SoM instead."""
+        return []
 
 
 @dataclass
@@ -86,10 +91,15 @@ class Center:
         return f"({self.x},{self.y})"
 
 
+# ── Legacy types (kept for desktop/service.py import compatibility) ──
+
+
 @dataclass
 class TreeElementNode:
-    bounding_box: BoundingBox
-    center: Center
+    """Legacy node type. Kept for backward compat with desktop/service.py imports."""
+
+    bounding_box: BoundingBox = field(default_factory=lambda: BoundingBox(0, 0, 0, 0, 0, 0))
+    center: Center = field(default_factory=lambda: Center(0, 0))
     name: str = ""
     control_type: str = ""
     window_name: str = ""
@@ -98,64 +108,29 @@ class TreeElementNode:
     xpath: str = ""
     is_focused: bool = False
 
-    def update_from_node(self, node: "TreeElementNode"):
-        self.name = node.name
-        self.control_type = node.control_type
-        self.window_name = node.window_name
-        self.value = node.value
-        self.shortcut = node.shortcut
-        self.bounding_box = node.bounding_box
-        self.center = node.center
-        self.xpath = node.xpath
-        self.is_focused = node.is_focused
-
-    # Legacy method kept for compatibility if needed, but not used in new format
-    def to_row(self, index: int):
-        return [
-            index,
-            self.window_name,
-            self.control_type,
-            self.name,
-            self.value,
-            self.shortcut,
-            self.center.to_string(),
-            self.is_focused,
-        ]
-
 
 @dataclass
 class ScrollElementNode:
-    name: str
-    control_type: str
-    xpath: str
-    window_name: str
-    bounding_box: BoundingBox
-    center: Center
-    horizontal_scrollable: bool
-    horizontal_scroll_percent: float
-    vertical_scrollable: bool
-    vertical_scroll_percent: float
-    is_focused: bool
+    """Legacy node type. Kept for backward compat."""
 
-    # Legacy method kept for compatibility
-    def to_row(self, index: int, base_index: int):
-        return [
-            base_index + index,
-            self.window_name,
-            self.control_type,
-            self.name,
-            self.center.to_string(),
-            self.horizontal_scrollable,
-            self.horizontal_scroll_percent,
-            self.vertical_scrollable,
-            self.vertical_scroll_percent,
-            self.is_focused,
-        ]
+    name: str = ""
+    control_type: str = ""
+    xpath: str = ""
+    window_name: str = ""
+    bounding_box: BoundingBox = field(default_factory=lambda: BoundingBox(0, 0, 0, 0, 0, 0))
+    center: Center = field(default_factory=lambda: Center(0, 0))
+    horizontal_scrollable: bool = False
+    horizontal_scroll_percent: float = 0
+    vertical_scrollable: bool = False
+    vertical_scroll_percent: float = 0
+    is_focused: bool = False
 
 
 @dataclass
 class TextElementNode:
-    text: str
+    """Legacy node type. Kept for scrape tool compat."""
+
+    text: str = ""
 
 
 ElementNode = TreeElementNode | ScrollElementNode | TextElementNode

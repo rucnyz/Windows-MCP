@@ -170,8 +170,7 @@ async def state_tool(request: StateToolRequest):
         desktop_state = desktop.get_state(
             use_vision=request.use_vision, as_bytes=request.use_vision
         )
-        interactive_elements = desktop_state.tree_state.interactive_elements_to_string()
-        scrollable_elements = desktop_state.tree_state.scrollable_elements_to_string()
+        accessibility_tree = desktop_state.tree_state.interactive_elements_to_string()
         windows = desktop_state.windows_to_string()
         active_window = desktop_state.active_window_to_string()
 
@@ -185,11 +184,8 @@ async def state_tool(request: StateToolRequest):
         Opened Windows:
         {windows}
 
-        List of Interactive Elements:
-        {interactive_elements or "No interactive elements found."}
-
-        List of Scrollable Elements:
-        {scrollable_elements or "No scrollable elements found."}
+        Accessibility Tree:
+        {accessibility_tree or "No elements found."}
         """)
 
         result = {"state": state_text}

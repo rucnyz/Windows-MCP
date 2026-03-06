@@ -132,8 +132,7 @@ def state_tool(use_vision: bool | str = False, use_dom: bool | str = False, ctx:
         desktop_state = desktop.get_state(
             use_vision=use_vision, use_dom=use_dom, as_bytes=True, scale=scale
         )
-        interactive_elements = desktop_state.tree_state.interactive_elements_to_string()
-        scrollable_elements = desktop_state.tree_state.scrollable_elements_to_string()
+        accessibility_tree = desktop_state.tree_state.interactive_elements_to_string()
         windows = desktop_state.windows_to_string()
         active_window = desktop_state.active_window_to_string()
         active_desktop = desktop_state.active_desktop_to_string()
@@ -154,11 +153,8 @@ def state_tool(use_vision: bool | str = False, use_dom: bool | str = False, ctx:
     Opened Windows:
     {windows}
 
-    List of Interactive Elements:
-    {interactive_elements or "No interactive elements found."}
-
-    List of Scrollable Elements:
-    {scrollable_elements or "No scrollable elements found."}
+    Accessibility Tree:
+    {accessibility_tree or "No elements found."}
     """)
     ] + ([Image(data=desktop_state.screenshot, format="png")] if use_vision else [])
 
