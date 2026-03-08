@@ -29,7 +29,7 @@ import pyautogui as pg
 import pyperclip as pc
 
 pg.FAILSAFE = False
-pg.PAUSE = 1.0
+pg.PAUSE = 0
 
 desktop = Desktop()
 windows_version = desktop.get_windows_version()

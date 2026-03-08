@@ -42,7 +42,7 @@ import windows_mcp.uia as uia  # noqa: E402
 import pyautogui as pg  # noqa: E402
 
 pg.FAILSAFE = False
-pg.PAUSE = 1.0
+pg.PAUSE = 0
 
 
 class Desktop:
