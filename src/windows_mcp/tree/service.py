@@ -200,8 +200,15 @@ def _create_pywinauto_node(
         except Exception:
             pass
 
-    # Tag name from class_name (OSWorld logic)
+    # Tag name from class_name (OSWorld logic), with fallback to
+    # friendly_class_name for elements that have an empty class_name
+    # (e.g. Desktop icon ListItems inside Progman/SysListView32).
     node_role_name: str = node.class_name().lower().replace(" ", "-")
+    if not node_role_name.strip():
+        try:
+            node_role_name = node.friendly_class_name().lower().replace(" ", "-")
+        except Exception:
+            pass
     node_role_name = "".join(
         ch if ch.isidentifier() or ch in {"-"} or ch.isalnum() else "-" for ch in node_role_name
     )
@@ -407,6 +414,18 @@ class Tree:
 
         # Build XML for each window (parallel, like OSWorld)
         windows = desktop.windows()
+
+        # Explicitly include the Desktop (Progman) window which holds desktop
+        # icons.  desktop.windows() skips it because Windows marks it as
+        # hidden / 1×1, but its children (the icon ListItems) are real,
+        # visible UI elements that agents need to interact with.
+        try:
+            progman = desktop.window(class_name="Progman")
+            if progman.exists() and progman not in windows:
+                windows.append(progman)
+        except Exception:
+            pass
+
         if windows:
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 futures = [
