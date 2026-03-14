@@ -67,7 +67,7 @@ class ClickToolRequest(BaseModel):
 
 
 class TypeToolRequest(BaseModel):
-    loc: List[int]
+    loc: Optional[List[int]] = None
     text: str
     clear: bool = False
     press_enter: bool = False
@@ -243,19 +243,23 @@ async def click_tool(request: ClickToolRequest):
 @app.post("/tools/type", response_model=ToolResponse)
 async def type_tool(request: TypeToolRequest):
     try:
-        if len(request.loc) != 2:
-            raise HTTPException(
-                status_code=400,
-                detail="Location must be a list of exactly 2 integers [x, y]",
-            )
-        x, y = request.loc[0], request.loc[1]
+        loc = None
+        if request.loc is not None:
+            if len(request.loc) != 2:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Location must be a list of exactly 2 integers [x, y]",
+                )
+            loc = (request.loc[0], request.loc[1])
         desktop.type(
-            loc=(x, y),
+            loc=loc,
             text=request.text,
             clear=request.clear,
             press_enter=request.press_enter,
         )
-        return ToolResponse(result=f"Typed {request.text} at ({x},{y}).")
+        if loc:
+            return ToolResponse(result=f"Typed {request.text} at ({loc[0]},{loc[1]}).")
+        return ToolResponse(result=f"Typed {request.text} at current focus.")
     except HTTPException:
         raise
     except Exception as e:

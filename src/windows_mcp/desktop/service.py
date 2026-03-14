@@ -437,14 +437,15 @@ class Desktop:
 
     def type(
         self,
-        loc: tuple[int, int],
+        loc: tuple[int, int] | None,
         text: str,
         caret_position: Literal["start", "idle", "end"] = "idle",
         clear: bool | str = False,
         press_enter: bool | str = False,
     ):
-        x, y = loc
-        pg.leftClick(x, y)
+        if loc is not None:
+            x, y = loc
+            pg.leftClick(x, y)
         if caret_position == "start":
             pg.press("home")
         elif caret_position == "end":

@@ -198,24 +198,28 @@ def click_tool(
 )
 @with_analytics(analytics, "Type-Tool")
 def type_tool(
-    loc: list[int],
-    text: str,
+    loc: list[int] | None = None,
+    text: str = "",
     clear: bool | str = False,
     caret_position: Literal["start", "idle", "end"] = "idle",
     press_enter: bool | str = False,
     ctx: Context = None,
 ) -> str:
-    if len(loc) != 2:
-        raise ValueError("Location must be a list of exactly 2 integers [x, y]")
-    x, y = loc[0], loc[1]
+    parsed_loc = None
+    if loc is not None:
+        if len(loc) != 2:
+            raise ValueError("Location must be a list of exactly 2 integers [x, y]")
+        parsed_loc = (loc[0], loc[1])
     desktop.type(
-        loc=loc,
+        loc=parsed_loc,
         text=text,
         caret_position=caret_position,
         clear=clear,
         press_enter=press_enter,
     )
-    return f"Typed {text} at ({x},{y})."
+    if parsed_loc:
+        return f"Typed {text} at ({parsed_loc[0]},{parsed_loc[1]})."
+    return f"Typed {text} at current focus."
 
 
 @mcp.tool(
